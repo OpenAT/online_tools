@@ -1,0 +1,96 @@
+#!/usr/bin/env python
+import sys
+import os
+from os.path import join as pj
+import subprocess32
+from subprocess32 import check_output as shell
+import ConfigParser
+import shutil
+
+
+# Update script run by instance github webhooks and in saltstack ONLINE.sls formula
+
+instance_path = sys.argv[sys.argv.index('--instance-dir')+1]
+assert os.path.exists(instance_path), 'CRITICAL: Instance path not found: %s' % instance_path
+
+root_path = os.path.dirname(instance_path)
+instance = os.path.basename(instance_path)
+
+# Stop Service
+# Todo: better detection if service is really stopped
+if '--service-restart' in sys.argv:
+    try:
+        print "\nStopping Service: %s" % instance
+        shell(['service', instance, 'stop'], timeout=60)
+    except (subprocess32.CalledProcessError, subprocess32.TimeoutExpired) as e:
+        print 'ERROR: Stopping service failed with retcode %s !\nOutput:\n\n%s\n' % (e.returncode, e.output)
+        raise
+
+# Update Instance Repo
+try:
+    print 'Update instance %s from github!' % instance_path
+    shell(['git', 'fetch'], cwd=instance_path, timeout=240)
+    shell(['git', 'pull'], cwd=instance_path, timeout=240)
+    print 'Update of instance successful!'
+except (subprocess32.CalledProcessError, subprocess32.TimeoutExpired) as e:
+    print 'ERROR: Update of instance %s failed with retcode %s !\nOutput:\n\n%s\n' % (instance, e.returncode, e.output)
+    raise
+
+# Create set of odoo cores in core_current and core_target
+print '\nCloning FS-Online cores from github!'
+version_files = list()
+# http://stackoverflow.com/questions/1724693/find-a-file-in-python
+for dirname, folders, files in os.walk(root_path, followlinks=True):
+    for folder in folders:
+        if 'online_' not in folder:
+            inifile = pj(pj(dirname, folder), 'version.ini')
+            if os.path.isfile(inifile):
+                version_files.append(inifile)
+odoo_cores = list()
+if version_files:
+    for version_file in version_files:
+        config = ConfigParser.SafeConfigParser()
+        config.read(version_file)
+        config = dict(config.items('options'))
+        if config.get('core_current') and config.get('core_current') not in odoo_cores:
+            odoo_cores.append(config.get('core_current'))
+        if config.get('core_target') and config.get('core_target') not in odoo_cores:
+            odoo_cores.append(config.get('core_target'))
+print 'FS-Online Cores found: %s' % odoo_cores
+
+# git clone all missing sources and set o= rights
+odoo_core_paths = []
+for core in odoo_cores:
+    url = 'https://michaelkarrer81@gmail.com:mike1234@github.com/OpenAT/online.git'
+    path = pj(root_path, 'online_' + core)
+    odoo_core_paths.append(path)
+    if os.path.exists(path):
+        print "Core %s already exists: %s" % (core, path)
+    else:
+        try:
+            print "Cloning core %s from github to %s" % (core, path)
+            shell(['git', 'clone', '-b', core, url, path], cwd=root_path, timeout=1200)
+        except (subprocess32.CalledProcessError, subprocess32.TimeoutExpired) as e:
+            print 'ERROR: Cloning of core failed with retcode %s !\nOutput:\n\n%s\n' % (e.returncode, e.output)
+            raise
+
+# remove unnecessary sources
+cmd = ['find', root_path, '-type', 'd', '-maxdepth', '1', '-iname', 'online_*']
+print subprocess32.check_output(cmd).splitlines()
+found_cores = [line for line in subprocess32.check_output(cmd).splitlines()]
+for core in found_cores:
+    if core not in odoo_core_paths:
+        shutil.rmtree(core)
+        print 'Core was deleted since not needed by any version.ini file: %s' % core
+
+
+#for item in os.listdir()
+
+# Start Service
+if '--service-restart' in sys.argv:
+    try:
+        print "Starting Service: %s\n" % instance
+        shell(['service', instance, 'start'], timeout=60)
+    except (subprocess32.CalledProcessError, subprocess32.TimeoutExpired) as e:
+        print 'ERROR: Starting service failed with retcode %s !\nOutput:\n\n%s\n' % (e.returncode, e.output)
+        raise

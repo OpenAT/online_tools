@@ -33,7 +33,7 @@ def _odoo_config(instance_path):
         cnf['config_file'] = configfile
     else:
         cnf['config_file'] = False
-        print 'WARNING: No config file found at: %s\n Using development defaults instead.' % configfile
+        print '\nWARNING: No config file found at: %s Using development defaults instead!' % configfile
 
     # ----- STATIC INFORMATION (WILL NOT BE CHANGED) START -----
     # Get the Database name from commandline > or configfile > or foldername
@@ -92,10 +92,15 @@ def _odoo_config(instance_path):
     # Add odoo sources path
     cnf['core_current_dir'] = pj(cnf['root_dir'], 'online_' + cnf['core_current'])
     cnf['core_target_dir'] = pj(cnf['root_dir'], 'online_' + cnf['core_target'])
+    assert os.path.exists(cnf['core_current_dir']), 'CRITICAL: Current odoo core missing: %s' % cnf['core_current_dir']
     # Set instance addons last start commit hash
     if cnf.get('addons_last_update') == 'False':
         cnf['addons_last_update'] = _git_get_hash(instance_dir)
     # ----- DYNAMIC INFORMATION (MAYBE WRITTEN AT UPDATE) END -----
+
+    cnf['start_time'] = str(time.strftime('-%Y-%m-%d_%H-%M-%S'))
+    cnf['update_log_file'] = pj(cnf['instance_dir'], 'log/' +
+                                'update-' + cnf['db_name'] + '-' + cnf['core_target'] + cnf['start_time'] + '.log')
     return cnf
 
 
@@ -104,47 +109,68 @@ def _odoo_backup(conf, backup_base_dir=False):
         backup_base_dir = conf['backup_base_dir']
     assert os.path.exists(backup_base_dir), "ERROR: Backup directory missing: %s" % backup_base_dir
     backup_dir = pj(backup_base_dir,
-                    conf['db_name'] + '-' + conf['core_current'] + str(time.strftime('-%Y-%m-%d_%H-%M-%S')))
+                    conf['db_name'] + '-' + conf['core_current'] + conf['start_time'])
     os.makedirs(backup_dir)
     # Backup data_dir
-    print 'Backup of %s to %s' % (conf['data_dir'], backup_dir)
+    print '\nBackup of data_dir at %s to %s' % (conf['data_dir'], backup_dir)
     shutil.copytree(conf['data_dir'], pj(backup_dir, 'data_dir'))
     # Backup database
     try:
         cmd = ['pg_dump', '--format=c', '--no-owner', '--dbname='+conf['db_url'], '--file='+pj(backup_dir, 'db.dump')]
-        print 'Backup of %s to %s' % (conf['db_name'], backup_dir)
+        print 'Backup of database at %s to %s' % (conf['db_name'], backup_dir)
         shell(cmd, timeout=300)
     except subprocess32.CalledProcessError as e:
         print 'CRITICAL: Backup failed with returncode %s !\n%s\n' % (e.returncode, e.output)
         raise
+    print 'Backup was successful!'
     return backup_dir
 
 
 def _odoo_restore(backup_dir, conf):
-    restore_data_dir = pj(backup_dir, 'data_dir')
-    assert os.path.exists(restore_data_dir), "ERROR: Restore data_dir directory is missing: %s" % restore_data_dir
-    restore_database = pj(backup_dir, 'db.dump')
-    assert os.path.exists(restore_database), "ERROR: Restore database file is missing: %s" % restore_database
+    # Todo: Check for a odoo backup
+    restore_data_dir = str()
+    restore_target_dir = str()
+    restoredb = []
+    if os.path.exists(pj(backup_dir, 'filestore')):
+        print '\nOdoo backup detected!'
+        restore_data_dir = pj(backup_dir, 'filestore')
+        restore_target_dir = pj(conf['data_dir'], 'filestore')
+        assert os.path.exists(restore_data_dir), "ERROR: Restore filestore directory is missing: %s" % restore_data_dir
+        restore_database = pj(backup_dir, 'dump.sql')
+        assert os.path.exists(restore_database), "ERROR: Restore database file is missing: %s" % restore_database
+        restoredb = ['psql', '--dbname='+conf['db_url'], '-f', restore_database, ]
+    else:
+        restore_data_dir = pj(backup_dir, 'data_dir')
+        restore_target_dir = conf['data_dir']
+        assert os.path.exists(restore_data_dir), "ERROR: Restore data_dir directory is missing: %s" % restore_data_dir
+        restore_database = pj(backup_dir, 'db.dump')
+        assert os.path.exists(restore_database), "ERROR: Restore database file is missing: %s" % restore_database
+        restoredb = ['pg_restore', '--format=c', '--no-owner', '--dbname='+conf['db_url'], restore_database, ]
+
     # Restore data_dir
+    print '\nRestore of data_dir at %s to %s' % (backup_dir, conf['data_dir'])
     shutil.rmtree(conf['data_dir'])
-    shutil.copytree(restore_data_dir, conf['data_dir'])
+    shutil.copytree(restore_data_dir, restore_target_dir)
+
     # Restore database
     try:
         # Drop the Database first (max_locks_per_transaction = 256 or higher is required for this to work!)
+        print 'Restore of database at %s to %s' % (backup_dir, conf['db_name'])
         sqldrop = 'DROP schema public CASCADE;CREATE schema public;'
-        dropdb = ['psql', '--command='+sqldrop, '--dbname='+conf['db_url']]
-        shell(dropdb, timeout=60)
+        dropdb = ['psql', '-q', '--command='+sqldrop, '--dbname='+conf['db_url'], ]
+        devnull = open(os.devnull, 'w')
+        shell(dropdb, timeout=120, stderr=devnull)
     except subprocess32.CalledProcessError as e:
         print 'CRITICAL: Drop database failed with returncode %s !\n%s\n' % (e.returncode, e.output)
         raise
     try:
         # Restore the database (HINT: Don't use --clean!)
-        restoredb = ['pg_restore', '--format=c', '--no-owner', '--dbname='+conf['db_url'], restore_database]
         shell(restoredb, timeout=600)
-        print "Successful restore of: %s" % backup_dir
     except (subprocess32.CalledProcessError, subprocess32.TimeoutExpired) as e:
-        print 'CRITICAL: Restore database failed with returncode %s ! Output:\n %s \n' % (e.returncode, e.output)
+        print 'CRITICAL: Restore database failed with returncode %s ! Output:\n%s\n' % (e.returncode, e.output)
         raise
+
+    print 'Restore was successful!'
     return True
 
 
@@ -210,14 +236,18 @@ def _update_config(configfile, conf, settings={}, section='options'):
 
 
 def _odoo_update(conf):
-
+    print '\nStart update check!'
     # Do not start if the instance addon version will not fit the targeted core
     # HINT: String splicing starts at 1 ant not at 0 (so we skip 3 chars e.g.: o8r)
     assert int(conf['addons_minimum_core'][3:]) <= int(conf['core_target'][3:]), "CRITICAL:" \
         "Instance-addons addons_minimum_core is greater than the core_target version in version.ini!"
 
     if conf['update_failed'] != 'False' or conf['no_update'] != 'False' \
-            or any(x in ['--addons-path', '-u'] for x in sys.argv):
+            or any(x in ['--addons-path', '-u'] for x in sys.argv)\
+            or not os.path.exists(conf['core_target_dir']):
+
+        if not os.path.exists(conf['core_target_dir']):
+            print "ERROR: Odoo target core is missing: %s" % os.path.exists(conf['core_target_dir'])
         print "Updates skipped!\nCheck update_failed or no_update in version.ini or --addons-path or -u was set."
         return False
 
@@ -232,6 +262,8 @@ def _odoo_update(conf):
         for addon in _find_addons_inpaths([odoo_base_addons, odoo_addons, loaded_addons]):
             if addon in updates:
                 core_updates.append(addon)
+    if core_updates:
+        print 'Updates for the odoo core found: %s' % core_updates
 
     # addons to update for instance addons
     changed_files = _changed_files(conf['addons_instance_dir'],
@@ -239,11 +271,12 @@ def _odoo_update(conf):
                                    _git_get_hash(conf['instance_dir']))
     # HINT: all addons in addons_instance_dir can be installed so no for loop needed
     instance_updates, instance_langupdates = _find_addons_byfile(changed_files, stop=[conf['instance_dir'], ])
+    if instance_updates:
+        print 'Updates for the instance addons found: %s' % instance_updates
 
     all_updates = core_updates + instance_updates
     # Update - If any addons to update are found
     if all_updates:
-
         # Backup first
         try:
             backup = _odoo_backup(conf)
@@ -260,19 +293,24 @@ def _odoo_update(conf):
             args += ['-u', all_updates_csv, '--stop-after-init']
             command = [pj(conf['core_target_dir'], 'odoo/openerp-server'), ] + args
             print '\nStarting update of database. Please be patient!\nAddons to update: %s' % all_updates_csv
-            print 'Updating odoo with: %s' % command
+            #print 'Updating odoo with: %s' % command
             # Todo: http://blog.endpoint.com/2015/01/getting-realtime-output-using-python.html
             #       http://eyalarubas.com/python-subproc-nonblock.html
             # HINT: Correct Path is set by cwd
-            print shell(command, cwd=pj(conf['core_target_dir'], 'odoo'), timeout=600)
+            update = shell(command, cwd=pj(conf['core_target_dir'], 'odoo'), timeout=600)
+            with open(conf['update_log_file'], 'w+') as writefile:
+                writefile.write(update)
         except (subprocess32.CalledProcessError, subprocess32.TimeoutExpired) as e:
 
             # Update failed
             _update_config(conf['version_file'], conf, settings={'update_failed': conf['core_target']})
-            print 'ERROR: Update failed with returncode %s ! Output:\n%s\n' % (e.returncode, e.output)
+            # Write log file
+            with open(conf['update_log_file'], 'w+') as writefile:
+                writefile.write(e.output)
+            print 'ERROR: Update failed with returncode %s !\nOutput:\n\n%s\n' % (e.returncode, e.output)
             try:
+                # Restore pre-update backup
                 _odoo_restore(backup, conf)
-                print 'Database and data_dir successfully restored from: %s' % backup
                 return False
             except:
 
@@ -292,7 +330,7 @@ def _odoo_update(conf):
     #       Therefore the update should only happen if no config file is found!
     if not all_updates:
         print 'No addons needed to be updated!'
-    print 'Update was successful!\n'
+    print 'Update was successful!'
     return True
 
 # ----- START MAIN ROUTINE -----
@@ -319,7 +357,12 @@ if __name__ == "__main__":
     # Do not start if there was failed restore attempt after an update
     assert odoo_config['restore_failed'] == 'False', 'CRITICAL: "restore_failed" is set in version.ini!'
 
-    # Restore a backup from folder (must use data_dir and db.dump)
+    # Create a backup
+    if '--backup' in sys.argv:
+        _odoo_backup(odoo_config)
+        sys.argv.remove('--restore')
+
+    # Restore a backup from folder (must use "data_dir" and "db.dump" inside restore folder)
     if '--restore' in sys.argv:
         _odoo_restore(sys.argv[sys.argv.index('--restore')+1], odoo_config)
         sys.argv.pop(sys.argv.index('--restore')+1)
@@ -330,15 +373,15 @@ if __name__ == "__main__":
     _odoo_update(odoo_config)
 
     # Start odoo
+    print '\n\n---------- START ----------'
     # Switch path to current odoo_core
     sys.path[0] = pj(odoo_config['core_current_dir'], 'odoo')
-    os.chdir(sys.path[0])
     print 'sys.path[0] set to: %s' % sys.path[0]
+    os.chdir(sys.path[0])
     print 'Working directory set to: %s' % os.getcwd()
     # Use development defaults for startup. (ONLY if no config file was found else dev_startup_args are empty!)
     sys.argv += odoo_config['dev_startup_args']
-    print "Start odoo with sys.argv: %s" % sys.argv
-
+    #print "Start odoo with sys.argv: %s" % sys.argv
     import openerp
     if sys.gettrace() is None:
         # we are in debug mode ensure that odoo don't try to start in gevented mode
