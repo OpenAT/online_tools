@@ -58,10 +58,11 @@ if version_files:
             odoo_cores.append(config.get('core_target'))
 print 'FS-Online Cores found: %s' % odoo_cores
 
-# git clone all missing sources and set o= rights
+# git clone all missing sources and prevent others to write to the core
 odoo_core_paths = []
 for core in odoo_cores:
-    url = 'https://michaelkarrer81@gmail.com:mike1234@github.com/OpenAT/online.git'
+    # TODO: find a way to give username with @ and password for git clone
+    url = 'https://github.com/OpenAT/online.git'
     path = pj(root_path, 'online_' + core)
     odoo_core_paths.append(path)
     if os.path.exists(path):
@@ -69,22 +70,23 @@ for core in odoo_cores:
     else:
         try:
             print "Cloning core %s from github to %s" % (core, path)
-            shell(['git', 'clone', '-b', core, url, path], cwd=root_path, timeout=1200)
+            shell(['git', 'clone', '-b', core, '--recurse-submodules', url, path], cwd=root_path, timeout=1200)
+            if os.path.exists(path):
+                print 'Set user and group to root.'
+                shell(['chown', '-R', 'root:root', path], cwd=path, timeout=60)
+                print 'Set files and directories to read only for all others.'
+                shell(['chmod', '-R', 'o=-w', path], cwd=path, timeout=60)
         except (subprocess32.CalledProcessError, subprocess32.TimeoutExpired) as e:
             print 'ERROR: Cloning of core failed with retcode %s !\nOutput:\n\n%s\n' % (e.returncode, e.output)
             raise
 
 # remove unnecessary sources
-cmd = ['find', root_path, '-type', 'd', '-maxdepth', '1', '-iname', 'online_*']
-print subprocess32.check_output(cmd).splitlines()
+cmd = ['find', root_path, '-type', 'd', '-maxdepth', '1', '-iname', 'online_o*']
 found_cores = [line for line in subprocess32.check_output(cmd).splitlines()]
 for core in found_cores:
-    if core not in odoo_core_paths:
+    if core not in odoo_core_paths and os.path.exists(pj(core, 'addons-loaded')) and core != 'online_tools':
         shutil.rmtree(core)
         print 'Core was deleted since not needed by any version.ini file: %s' % core
-
-
-#for item in os.listdir()
 
 # Start Service
 if '--service-restart' in sys.argv:
