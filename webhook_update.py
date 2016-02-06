@@ -71,14 +71,16 @@ for core in odoo_cores:
         try:
             print "Cloning core %s from github to %s" % (core, path)
             shell(['git', 'clone', '-b', core, '--recurse-submodules', url, path], cwd=root_path, timeout=1200)
-            if os.path.exists(path):
-                print 'Set user and group to root.'
-                shell(['chown', '-R', 'root:root', path], cwd=path, timeout=60)
-                print 'Set files and directories to read only for all others.'
-                shell(['chmod', '-R', 'o=-w', path], cwd=path, timeout=60)
         except (subprocess32.CalledProcessError, subprocess32.TimeoutExpired) as e:
             print 'ERROR: Cloning of core failed with retcode %s !\nOutput:\n\n%s\n' % (e.returncode, e.output)
             raise
+    try:
+        print 'Set user and group to root for core %s' % core
+        shell(['chown', '-R', 'root:root', path], cwd=path, timeout=60)
+        print 'Set files and directories to read only for all others.'
+        shell(['chmod', '-R', 'o=-w', path], cwd=path, timeout=60)
+    except:
+        print "WARNING: Could not set user, group or rights for core! Maybe you are not root?"
 
 # remove unnecessary sources
 cmd = ['find', root_path, '-type', 'd', '-maxdepth', '1', '-iname', 'online_o*']
