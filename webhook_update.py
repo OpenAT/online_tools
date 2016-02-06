@@ -78,7 +78,7 @@ for core in odoo_cores:
         print 'Set user and group to root for core %s' % core
         shell(['chown', '-R', 'root:root', path], cwd=path, timeout=60)
         print 'Set files and directories to read only for all others.'
-        shell(['chmod', '-R', 'o=-w', path], cwd=path, timeout=60)
+        shell(['chmod', '-R', 'o+rX-w', path], cwd=path, timeout=60)
     except:
         print "WARNING: Could not set user, group or rights for core! Maybe you are not root?"
 
