@@ -28,16 +28,16 @@ if '--service-restart' in sys.argv:
 
 # Update Instance Repo
 try:
-    print 'Update instance %s from github!' % instance_path
-    shell(['git', 'fetch'], cwd=instance_path, timeout=240)
-    shell(['git', 'pull'], cwd=instance_path, timeout=240)
+    print '\nUpdate from github of instance %s' % instance_path
+    shell(['git', 'fetch'], cwd=instance_path, timeout=300)
+    shell(['git', 'pull'], cwd=instance_path, timeout=300)
     print 'Update of instance successful!'
 except (subprocess32.CalledProcessError, subprocess32.TimeoutExpired) as e:
     print 'ERROR: Update of instance %s failed with retcode %s !\nOutput:\n\n%s\n' % (instance, e.returncode, e.output)
     raise
 
 # Create set of odoo cores in core_current and core_target
-print '\nCloning FS-Online cores from github!'
+print '\nCloning FS-Online cores from github:'
 version_files = list()
 # http://stackoverflow.com/questions/1724693/find-a-file-in-python
 for dirname, folders, files in os.walk(root_path, followlinks=True):
@@ -66,10 +66,10 @@ for core in odoo_cores:
     path = pj(root_path, 'online_' + core)
     odoo_core_paths.append(path)
     if os.path.exists(path):
-        print "Core %s already exists: %s" % (core, path)
+        print "\nCore %s already exists: %s" % (core, path)
     else:
         try:
-            print "Cloning core %s from github to %s" % (core, path)
+            print "\nCloning core %s from github to %s" % (core, path)
             shell(['git', 'clone', '-b', core, '--recurse-submodules', url, path], cwd=root_path, timeout=1200)
         except (subprocess32.CalledProcessError, subprocess32.TimeoutExpired) as e:
             print 'ERROR: Cloning of core failed with retcode %s !\nOutput:\n\n%s\n' % (e.returncode, e.output)
@@ -85,15 +85,18 @@ for core in odoo_cores:
 # remove unnecessary sources
 cmd = ['find', root_path, '-type', 'd', '-maxdepth', '1', '-iname', 'online_o*']
 found_cores = [line for line in subprocess32.check_output(cmd).splitlines()]
-for core in found_cores:
-    if core not in odoo_core_paths and os.path.exists(pj(core, 'addons-loaded')) and core != 'online_tools':
-        shutil.rmtree(core)
-        print 'Core was deleted since not needed by any version.ini file: %s' % core
+print "\nSearching for obsolete cores."
+print "Cores found in version.ini files: %s" % odoo_core_paths
+print "Cores found on on host: %s" % found_cores
+for found_core_path in found_cores:
+    if found_core_path not in odoo_core_paths and os.path.exists(pj(found_core_path, 'addons-loaded')):
+        shutil.rmtree(found_core_path)
+        print 'Core was deleted since not needed by any version.ini file: %s' % found_core_path
 
 # Start Service
 if '--service-restart' in sys.argv:
     try:
-        print "Starting Service: %s\n" % instance
+        print "\nStarting Service: %s" % instance
         shell(['service', instance, 'start'], timeout=60)
     except (subprocess32.CalledProcessError, subprocess32.TimeoutExpired) as e:
         print 'ERROR: Starting service failed with retcode %s !\nOutput:\n\n%s\n' % (e.returncode, e.output)
