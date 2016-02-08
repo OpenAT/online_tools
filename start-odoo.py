@@ -24,9 +24,17 @@ def _git_get_hash(path):
 def _odoo_config(instance_path):
     cnf = {}
 
-    # Get the configfile
-    configfile = sys.argv[sys.argv.index('-c')+1] if '-c' in sys.argv else pj(instance_path, 'server.conf')
-    if os.path.isfile(configfile):
+    # Get the configfile and set sys.argv
+    configfile = False
+    if '-c' in sys.argv:
+        configfile = sys.argv[sys.argv.index('-c')+1]
+        assert os.path.isfile(configfile), "CRITICAL: -c given but config file not found at: %s" % configfile
+    elif os.path.isfile(pj(instance_path, 'server.conf')):
+        print "Using default config file server.conf!"
+        configfile = pj(instance_path, 'server.conf')
+        sys.argv.append('-c')
+        sys.argv.append(configfile)
+    if configfile:
         cnf = ConfigParser.SafeConfigParser()
         cnf.read(configfile)
         cnf = dict(cnf.items('options'))
@@ -52,11 +60,14 @@ def _odoo_config(instance_path):
     cnf['root_dir'] = os.path.dirname(instance_dir)  # cd .. e.g.: /opt/online
     # backup base dir
     cnf['backup_base_dir'] = pj(cnf['instance_dir'], 'backup')
+    assert os.path.exists(cnf['backup_base_dir']), "CRITICAL: backup directory missing: %s" % cnf['backup_base_dir']
     # Add data_dir !!! ATTENTION: (must be an absolute path!) !!!
     cnf['data_dir'] = cnf.get('data_dir', pj(instance_dir, 'data_dir'))
+    assert os.path.exists(cnf['data_dir']), "CRITICAL: data_dir missing! Must be an absolute path: %s" % cnf['data_dir']
     # Addon locations relative to the odoo folder inside the odoo_core folder
-    # Make sure addons-path is NOT! in the config file since we calculate them.
-    assert 'addons_path' not in cnf, "CRITICAL: --addons_path found in config file! Please remove it!"
+    # Make sure addons-path is NOT! in the config file or command line since we calculate them.
+    assert 'addons_path' not in cnf, "CRITICAL: addons_path found in config file! Please remove it!"
+    assert '--addons_path' not in sys.argv, "CRITICAL: --addons_path found! Please remove it!"
     cnf['addons_reldirs'] = ['openerp/addons', 'addons', '../addons-loaded', ]
     cnf['addons_instance_dir'] = pj(instance_dir, 'addons')
     cnf['addons_path'] = list(cnf['addons_reldirs']) + [cnf['addons_instance_dir'], ]
@@ -79,6 +90,8 @@ def _odoo_config(instance_path):
                                    '--db-template', 'template0',
                                    '--workers', cnf['workers'],
                                    ]
+    else:
+        cnf['dev_startup_args'] = ['--addons-path=' + cnf['addons_path_csv'], ]
     # ----- STATIC INFORMATION (WILL NOT BE CHANGED) END -----
 
     # ----- DYNAMIC INFORMATION (MAYBE WRITTEN AT UPDATE) START -----
@@ -99,6 +112,7 @@ def _odoo_config(instance_path):
     # ----- DYNAMIC INFORMATION (MAYBE WRITTEN AT UPDATE) END -----
 
     cnf['start_time'] = str(time.strftime('-%Y-%m-%d_%H-%M-%S'))
+    assert os.path.exists(pj(cnf['instance_dir'], 'log')), "CRITICAL: log folder missing!"
     cnf['update_log_file'] = pj(cnf['instance_dir'], 'log/' +
                                 'update-' + cnf['db_name'] + '-' + cnf['core_target'] + cnf['start_time'] + '.log')
     return cnf
@@ -298,15 +312,22 @@ def _odoo_update(conf):
             #       http://eyalarubas.com/python-subproc-nonblock.html
             # HINT: Correct Path is set by cwd
             update = shell(command, cwd=pj(conf['core_target_dir'], 'odoo'), timeout=600)
-            with open(conf['update_log_file'], 'w+') as writefile:
-                writefile.write(update)
+            # Write log file
+            try:
+                with open(conf['update_log_file'], 'w+') as writefile:
+                    writefile.write(update)
+            except:
+                print "ERROR: Could not write update log: %s" % conf['update_log_file']
         except (subprocess32.CalledProcessError, subprocess32.TimeoutExpired) as e:
 
             # Update failed
             _update_config(conf['version_file'], conf, settings={'update_failed': conf['core_target']})
             # Write log file
-            with open(conf['update_log_file'], 'w+') as writefile:
-                writefile.write(e.output)
+            try:
+                with open(conf['update_log_file'], 'w+') as writefile:
+                    writefile.write(update)
+            except:
+                print "ERROR: Could not write update log: %s" % conf['update_log_file']
             print 'ERROR: Update failed with returncode %s !\nOutput:\n\n%s\n' % (e.returncode, e.output)
             try:
                 # Restore pre-update backup
@@ -376,14 +397,26 @@ if __name__ == "__main__":
     print '\n\n---------- START ----------'
     # Switch path to current odoo_core
     sys.path[0] = pj(odoo_config['core_current_dir'], 'odoo')
-    print 'sys.path[0] set to: %s' % sys.path[0]
+    sys.argv[0] = sys.path[0]
+    sys.path.append(sys.path[0])
+    print 'sys.path[0] and sys.argv[0] set to: %s' % sys.path[0]
     os.chdir(sys.path[0])
     print 'Working directory set to: %s' % os.getcwd()
     # Use development defaults for startup. (ONLY if no config file was found else dev_startup_args are empty!)
     sys.argv += odoo_config['dev_startup_args']
     print "Start odoo with sys.argv: %s" % sys.argv
+
+    # for gevented mode
+    if odoo_config['workers'] != str(0):
+        print "workers: %s" % odoo_config['workers']
+        import gevent.monkey
+        gevent.monkey.patch_all()
+        import psycogreen.gevent
+        psycogreen.gevent.patch_psycopg()
+
+    # load openerp
     import openerp
-    if sys.gettrace() is None:
+    if sys.gettrace() is None and odoo_config['workers'] == str(0):
         # we are in debug mode ensure that odoo don't try to start in gevented mode
         print 'Odoo started in debug mode. Set openerp.evented to False!'
         openerp.evented = False
