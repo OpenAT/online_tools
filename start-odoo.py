@@ -381,7 +381,7 @@ if __name__ == "__main__":
     print 'Working directory set to: %s' % os.getcwd()
     # Use development defaults for startup. (ONLY if no config file was found else dev_startup_args are empty!)
     sys.argv += odoo_config['dev_startup_args']
-    #print "Start odoo with sys.argv: %s" % sys.argv
+    print "Start odoo with sys.argv: %s" % sys.argv
     import openerp
     if sys.gettrace() is None:
         # we are in debug mode ensure that odoo don't try to start in gevented mode
