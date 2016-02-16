@@ -12,7 +12,7 @@ from collections import OrderedDict
 
 
 def _git_get_hash(path):
-    assert os.path.exists(path), 'ERROR: Path not found: %s' % path
+    assert os.path.exists(path), 'CRITICAL: Path not found: %s' % path
     try:
         hashid = shell(['git', 'log', '-n', '1', '--pretty=format:"%H"'], cwd=path)
         return str(hashid)
@@ -21,9 +21,78 @@ def _git_get_hash(path):
         raise
 
 
+def _git_checkout(path, commit='o8'):
+    print "Git checkout %s in %s." % (commit, path)
+    assert os.path.exists(path), 'CRITICAL: Path not found: %s' % path
+    devnull = open(os.devnull, 'w')
+    try:
+        shell(['git', 'checkout', commit], cwd=path, timeout=60, stderr=devnull)
+    except subprocess32.CalledProcessError as e:
+        print 'CRITICAL: Git checkout %s failed with returncode %s !\n%s\n' % (commit, e.returncode, e.output)
+        raise
+    devnull.close()
+    return True
+
+
+def _git_pull(path, commit='o8'):
+    print "Git fetch and pull (get latest) \"%s\" in %s." % (commit, path)
+    assert os.path.exists(path), 'CRITICAL: Path not found: %s' % path
+    devnull = open(os.devnull, 'w')
+    try:
+        shell(['git', 'fetch'], cwd=path, timeout=120, stderr=devnull)
+    except subprocess32.CalledProcessError as e:
+        print 'CRITICAL: git fetch failed with returncode %s !\n%s\n' % (e.returncode, e.output)
+        raise
+    try:
+        _git_checkout(path, commit=commit)
+        shell(['git', 'pull'], cwd=path, timeout=120, stderr=devnull)
+    except subprocess32.CalledProcessError as e:
+        print 'CRITICAL: git pull failed with returncode %s !\n%s\n' % (e.returncode, e.output)
+        raise
+    devnull.close()
+    return True
+
+
+def _git_push_file(path, f='version.ini'):
+    print "Git push %s from %s to github." % (f, path)
+    if not os.path.exists(path):
+        print 'ERROR: Path not found: %s' % path
+        return False
+    devnull = open(os.devnull, 'w')
+    changes = False
+    try:
+        changes = shell(['git', 'status', '--porcelain'], cwd=path, timeout=60, stderr=devnull)
+    except:
+        print 'ERROR: git status --porcelain failed!'
+    if changes:
+        try:
+            shell(['git', 'add', f], cwd=path, timeout=60, stderr=devnull)
+        except subprocess32.CalledProcessError as e:
+            print 'ERROR: git add %s failed with returncode %s !\n%s\n' % (f, e.returncode, e.output)
+            devnull.close()
+            return False
+        try:
+            shell(['git', 'commit', '-m', '"[UPDATE] Automatic commit through start-odoo.py."'],
+                  cwd=path, timeout=60, stderr=devnull)
+        except subprocess32.CalledProcessError as e:
+            print 'ERROR: git commit %s failed with returncode %s !\n%s\n' % (f, e.returncode, e.output)
+            devnull.close()
+            return False
+        try:
+            shell(['git', 'push'], cwd=path, timeout=120, stderr=devnull)
+        except subprocess32.CalledProcessError as e:
+            print 'ERROR: git push %s failed with returncode %s !\n%s\n' % (f, e.returncode, e.output)
+            devnull.close()
+            return False
+    else:
+        print 'Git push cancelled: No changes in %s at %s.' % (f, path)
+    devnull.close()
+    return True
+
+
 def _odoo_config(instance_path):
     cnf = {}
-
+    print "\nRead odoo confing!"
     # Get the configfile and set sys.argv
     configfile = False
     if '-c' in sys.argv:
@@ -41,7 +110,13 @@ def _odoo_config(instance_path):
         cnf['config_file'] = configfile
     else:
         cnf['config_file'] = False
-        print '\nWARNING: No config file found at: %s Using development defaults instead!' % configfile
+        print 'WARNING: No config file found at: %s Using development defaults instead!' % instance_path
+
+    # --github = Fetch,Pull and Push to/from Github for the instance repo
+    cnf['github'] = False
+    if '--github' in sys.argv:
+        sys.argv.remove('--github')
+        cnf['github'] = True
 
     # ----- STATIC INFORMATION (WILL NOT BE CHANGED) START -----
     # Get the Database name from commandline > or configfile > or foldername
@@ -106,9 +181,6 @@ def _odoo_config(instance_path):
     cnf['core_current_dir'] = pj(cnf['root_dir'], 'online_' + cnf['core_current'])
     cnf['core_target_dir'] = pj(cnf['root_dir'], 'online_' + cnf['core_target'])
     assert os.path.exists(cnf['core_current_dir']), 'CRITICAL: Current odoo core missing: %s' % cnf['core_current_dir']
-    # Set instance addons last start commit hash
-    if cnf.get('addons_last_update') == 'False':
-        cnf['addons_last_update'] = _git_get_hash(instance_dir)
     # ----- DYNAMIC INFORMATION (MAYBE WRITTEN AT UPDATE) END -----
 
     cnf['start_time'] = str(time.strftime('-%Y-%m-%d_%H-%M-%S'))
@@ -174,6 +246,7 @@ def _odoo_restore(backup_dir, conf):
         dropdb = ['psql', '-q', '--command='+sqldrop, '--dbname='+conf['db_url'], ]
         devnull = open(os.devnull, 'w')
         shell(dropdb, timeout=120, stderr=devnull)
+        devnull.close()
     except subprocess32.CalledProcessError as e:
         print 'CRITICAL: Drop database failed with returncode %s !\n%s\n' % (e.returncode, e.output)
         raise
@@ -239,6 +312,12 @@ def _find_addons_inpaths(addons_paths):
 
 
 def _update_config(configfile, conf, settings={}, section='options'):
+    print 'Update of config-dict and configfile %s.' % configfile
+    # Restore latest instance-addons to update version.ini
+    if conf['github']:
+        _git_checkout(conf['instance_dir'])
+
+    # Write version.ini
     config = ConfigParser.SafeConfigParser()
     config.read(configfile)
     for key, value in settings.iteritems():
@@ -246,15 +325,15 @@ def _update_config(configfile, conf, settings={}, section='options'):
         config.set(section, key, value)
     with open(configfile, 'w+') as writefile:
         config.write(writefile)
+
+    # git add, commit and push version.ini
+    if conf['github']:
+        _git_push_file(conf['instance_dir'])
     return True
 
 
 def _odoo_update(conf):
     print '\nStart update check!'
-    # Do not start if the instance addon version will not fit the targeted core
-    # HINT: String splicing starts at 1 ant not at 0 (so we skip 3 chars e.g.: o8r)
-    assert int(conf['addons_minimum_core'][3:]) <= int(conf['core_target'][3:]), "CRITICAL:" \
-        "Instance-addons addons_minimum_core is greater than the core_target version in version.ini!"
 
     if conf['update_failed'] != 'False' or conf['no_update'] != 'False' \
             or any(x in ['--addons-path', '-u'] for x in sys.argv)\
@@ -265,7 +344,10 @@ def _odoo_update(conf):
         print "Updates skipped!\nCheck update_failed or no_update in version.ini or --addons-path or -u was set."
         return False
 
-    # addons to update for odoo-core and thirdparty-addons
+    # checkout target instance-addons
+    _git_checkout(odoo_config['instance_dir'], odoo_config['addons_target'])
+
+    # Find addons to update for odoo-core and thirdparty-addons
     core_updates = []
     if conf['core_current'] != conf['core_target']:
         odoo_base_addons = pj(conf['core_target_dir'], 'odoo/openerp/addons')
@@ -278,18 +360,22 @@ def _odoo_update(conf):
                 core_updates.append(addon)
     if core_updates:
         print 'Updates for the odoo core found: %s' % core_updates
+    else:
+        print 'No Updates for the odoo core found!'
 
-    # addons to update for instance addons
-    changed_files = _changed_files(conf['addons_instance_dir'],
-                                   conf['addons_last_update'],
-                                   _git_get_hash(conf['instance_dir']))
+    # Find addons to update for instance addons
     # HINT: all addons in addons_instance_dir can be installed so no for loop needed
+    changed_files = _changed_files(conf['addons_instance_dir'],
+                                   conf['addons_current'],
+                                   conf['addons_target'])
     instance_updates, instance_langupdates = _find_addons_byfile(changed_files, stop=[conf['instance_dir'], ])
     if instance_updates:
         print 'Updates for the instance addons found: %s' % instance_updates
+    else:
+        print 'No Updates for the instance addons found!'
 
     all_updates = core_updates + instance_updates
-    # Update - If any addons to update are found
+    # Update (If any addons to update where found)
     if all_updates:
         # Backup first
         try:
@@ -321,7 +407,9 @@ def _odoo_update(conf):
         except (subprocess32.CalledProcessError, subprocess32.TimeoutExpired) as e:
 
             # Update failed
-            _update_config(conf['version_file'], conf, settings={'update_failed': conf['core_target']})
+            _update_config(conf['version_file'], conf, 
+                           settings={'update_failed': conf['core_target'] + ', ' + 
+                                                      conf['addons_target']})
             # Write log file
             try:
                 with open(conf['update_log_file'], 'w+') as writefile:
@@ -332,27 +420,28 @@ def _odoo_update(conf):
             try:
                 # Restore pre-update backup
                 _odoo_restore(backup, conf)
+                print "Successful restore of pre-update database and data_dir!"
                 return False
             except:
 
                 # Update Failed and Restore Failed - Raise Exception
-                _update_config(conf['version_file'], conf, settings={'restore_failed': conf['core_target']})
-                print 'CRITICAL: Could not restore db and data_dir after failed-update!'
+                _update_config(conf['version_file'], conf, 
+                               settings={'restore_failed': conf['core_target'] + ', ' + 
+                                                           conf['addons_target']})
+                print 'CRITICAL: Could not restore db or data_dir after failed update!'
                 raise
 
     # Update was successful (or no addons to update found)
     _update_config(conf['version_file'], conf, 
                    settings={'core_current': conf['core_target'],
-                             'addons_last_update': _git_get_hash(conf['instance_dir'])
+                             'addons_current': conf['addons_target']
                              })
 
-    # Todo: make sure instance_dir will be pushed back to github
-    #       Some problems arise if we are on the developement servers ...
-    #       Therefore the update should only happen if no config file is found!
     if not all_updates:
         print 'No addons needed to be updated!'
     print 'Update was successful!'
     return True
+
 
 # ----- START MAIN ROUTINE -----
 if __name__ == "__main__":
@@ -368,9 +457,9 @@ if __name__ == "__main__":
     sys.argv.remove('--instance-dir')
     sys.path[0] = instance_dir
 
-    # Todo: make sure instance_dir is up to date with github?!?
-    #       Some problems arise if we are on the developement servers ...
-    #       Therefore the update should only happen if no config file is found!
+    # Make sure instance_dir is up to date with github (FETCH, PULL for branch o8)!
+    if '--github' in sys.argv:
+        _git_pull(instance_dir)
 
     # Get the odoo configuration and/or defaults
     odoo_config = _odoo_config(instance_dir)
@@ -381,7 +470,7 @@ if __name__ == "__main__":
     # Create a backup
     if '--backup' in sys.argv:
         _odoo_backup(odoo_config)
-        sys.argv.remove('--restore')
+        sys.argv.remove('--backup')
 
     # Restore a backup from folder (must use "data_dir" and "db.dump" inside restore folder)
     if '--restore' in sys.argv:
@@ -391,17 +480,23 @@ if __name__ == "__main__":
 
     # Update Database if pre-requisites are met
     # HINT: Updates will only be done if -c is found and --addons-path or -u is not found in sys.argv
+    # Checkout the correct instance-addons before update check
     _odoo_update(odoo_config)
+
 
     # Start odoo
     print '\n\n---------- START ----------'
-    # Switch path to current odoo_core
+    # Switch path to odoo core_current
     sys.path[0] = pj(odoo_config['core_current_dir'], 'odoo')
     sys.argv[0] = sys.path[0]
     sys.path.append(sys.path[0])
     print 'sys.path[0] and sys.argv[0] set to: %s' % sys.path[0]
     os.chdir(sys.path[0])
     print 'Working directory set to: %s' % os.getcwd()
+
+    # Checkout the correct instance-addons before start
+    _git_checkout(odoo_config['instance_dir'], odoo_config['addons_current'])
+
     # Use development defaults for startup. (ONLY if no config file was found else dev_startup_args are empty!)
     sys.argv += odoo_config['dev_startup_args']
     print "Start odoo with sys.argv: %s" % sys.argv
@@ -421,3 +516,6 @@ if __name__ == "__main__":
         print 'Odoo started in debug mode. Set openerp.evented to False!'
         openerp.evented = False
     openerp.cli.main()
+
+
+

@@ -27,6 +27,7 @@ if '--service-restart' in sys.argv:
         raise
 
 # Update Instance Repo
+# TODO: maybe we should also update and git reset --hard for the instance repo?
 try:
     print '\nUpdate from github of instance %s' % instance_path
     shell(['git', 'fetch'], cwd=instance_path, timeout=300)
@@ -59,6 +60,7 @@ if version_files:
 print 'FS-Online Cores found: %s' % odoo_cores
 
 # git clone all missing sources and prevent others to write to the core
+# TODO: maybe we should also update and git reset --hard for the cores?
 odoo_core_paths = []
 for core in odoo_cores:
     # TODO: find a way to give username with @ and password for git clone
