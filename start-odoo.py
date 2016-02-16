@@ -408,15 +408,15 @@ def _odoo_update(conf):
 
             # Update failed
             _update_config(conf['version_file'], conf, 
-                           settings={'update_failed': conf['core_target'] + ', ' + 
-                                                      conf['addons_target']})
+                           settings={'update_failed': 'core ' + conf['core_target'] + ', ' +
+                                                      'addons ' + conf['addons_target']})
+            print 'ERROR: Update failed with returncode %s !\nOutput:\n\n%s\n' % (e.returncode, e.output)
             # Write log file
             try:
                 with open(conf['update_log_file'], 'w+') as writefile:
-                    writefile.write(update)
+                    writefile.write(e.output)
             except:
                 print "ERROR: Could not write update log: %s" % conf['update_log_file']
-            print 'ERROR: Update failed with returncode %s !\nOutput:\n\n%s\n' % (e.returncode, e.output)
             try:
                 # Restore pre-update backup
                 _odoo_restore(backup, conf)
@@ -426,8 +426,8 @@ def _odoo_update(conf):
 
                 # Update Failed and Restore Failed - Raise Exception
                 _update_config(conf['version_file'], conf, 
-                               settings={'restore_failed': conf['core_target'] + ', ' + 
-                                                           conf['addons_target']})
+                               settings={'restore_failed': 'core ' + conf['core_target'] + ', ' +
+                                                           'addons ' + conf['addons_target']})
                 print 'CRITICAL: Could not restore db or data_dir after failed update!'
                 raise
 
