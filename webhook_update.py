@@ -17,31 +17,32 @@ root_path = os.path.dirname(instance_path)
 instance = os.path.basename(instance_path)
 
 # Stop Service
+# WARNING: Always use --update except for saltstack!
 # Todo: better detection if service is really stopped
-if '--service-restart' in sys.argv:
+if '--update' in sys.argv:
     try:
         print "\nStopping Service: %s" % instance
         shell(['service', instance, 'stop'], timeout=60)
     except (subprocess32.CalledProcessError, subprocess32.TimeoutExpired) as e:
         print 'ERROR: Stopping service failed with retcode %s !\nOutput:\n\n%s\n' % (e.returncode, e.output)
-        raise
 
-# Update Instance Repo
-# TODO: maybe we should also update and git reset --hard for the instance repo?
-try:
-    print '\nUpdate from github of instance %s' % instance_path
-    shell(['git', 'fetch'], cwd=instance_path, timeout=300)
-    shell(['git', 'pull'], cwd=instance_path, timeout=300)
+    # Update Instance Repo
+    # THOUGHT: maybe we should also update and git reset --hard for the instance repo?
     try:
-        print "Set correct user and rights for instance %s" % instance_path
-        shell(['chown', '-R', instance+':'+instance, instance_path], cwd=instance_path, timeout=60)
-        shell(['chmod', '-R', 'o=', instance_path], cwd=instance_path, timeout=60)
+        print '\nUpdate from github of instance %s' % instance_path
+        shell(['git', 'checkout', 'o8'], cwd=instance_path, timeout=300)
+        shell(['git', 'fetch'], cwd=instance_path, timeout=300)
+        shell(['git', 'pull'], cwd=instance_path, timeout=300)
+        try:
+            print "Set correct user and rights for updated instance %s" % instance_path
+            shell(['chown', '-R', instance+':'+instance, instance_path], cwd=instance_path, timeout=60)
+            shell(['chmod', '-R', 'o=', instance_path], cwd=instance_path, timeout=60)
+        except (subprocess32.CalledProcessError, subprocess32.TimeoutExpired) as e:
+            print 'ERROR: Set user and rights failed with retcode %s !\nOutput:\n\n%s\n' % (e.returncode, e.output)
+        print 'Update of instance successful!'
     except (subprocess32.CalledProcessError, subprocess32.TimeoutExpired) as e:
-        print 'ERROR: Set user and rights failed with retcode %s !\nOutput:\n\n%s\n' % (e.returncode, e.output)
-    print 'Update of instance successful!'
-except (subprocess32.CalledProcessError, subprocess32.TimeoutExpired) as e:
-    print 'CRITICAL: Update of instance %s failed with retcode %s !\nOutput:\n\n%s\n' % (instance, e.returncode, e.output)
-    raise
+        print 'CRITICAL: Update of instance %s failed with retcode %s !\nOutput:\n\n%s\n' % (instance, e.returncode, e.output)
+        raise
 
 # Create set of odoo cores in core_current and core_target
 print '\nCloning FS-Online cores from github:'
@@ -66,7 +67,7 @@ if version_files:
 print 'FS-Online Cores found: %s' % odoo_cores
 
 # git clone all missing sources and prevent others to write to the core
-# TODO: maybe we should also update and git reset --hard for the cores?
+# THOUGHT: maybe we should also update and git reset --hard for the cores?
 odoo_core_paths = []
 for core in odoo_cores:
     # TODO: find a way to give username with @ and password for git clone
@@ -102,10 +103,10 @@ for found_core_path in found_cores:
         print 'Core was deleted since not needed by any version.ini file: %s' % found_core_path
 
 # Start Service
-if '--service-restart' in sys.argv:
+if '--update' in sys.argv:
     try:
         print "\nStarting Service: %s" % instance
         shell(['service', instance, 'start'], timeout=60)
     except (subprocess32.CalledProcessError, subprocess32.TimeoutExpired) as e:
-        print 'ERROR: Starting service failed with retcode %s !\nOutput:\n\n%s\n' % (e.returncode, e.output)
+        print 'CRITICAL: Starting service failed with retcode %s !\nOutput:\n\n%s\n' % (e.returncode, e.output)
         raise
