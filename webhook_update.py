@@ -32,9 +32,15 @@ try:
     print '\nUpdate from github of instance %s' % instance_path
     shell(['git', 'fetch'], cwd=instance_path, timeout=300)
     shell(['git', 'pull'], cwd=instance_path, timeout=300)
+    try:
+        print "Set correct user and rights for instance %s" % instance_path
+        shell(['chown', '-R', instance+':'+instance, instance_path], cwd=instance_path, timeout=60)
+        shell(['chmod', '-R', 'o=', instance_path], cwd=instance_path, timeout=60)
+    except (subprocess32.CalledProcessError, subprocess32.TimeoutExpired) as e:
+        print 'ERROR: Set user and rights failed with retcode %s !\nOutput:\n\n%s\n' % (e.returncode, e.output)
     print 'Update of instance successful!'
 except (subprocess32.CalledProcessError, subprocess32.TimeoutExpired) as e:
-    print 'ERROR: Update of instance %s failed with retcode %s !\nOutput:\n\n%s\n' % (instance, e.returncode, e.output)
+    print 'CRITICAL: Update of instance %s failed with retcode %s !\nOutput:\n\n%s\n' % (instance, e.returncode, e.output)
     raise
 
 # Create set of odoo cores in core_current and core_target
