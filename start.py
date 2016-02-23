@@ -694,7 +694,7 @@ def _addons_to_update(conf):
         odoo_addons = pj(conf['latest_core_dir'], 'odoo/addons')
         loaded_addons = pj(conf['latest_core_dir'], 'addons-loaded')
         changed_files = _changed_files(conf['latest_core_dir'], conf['core'], conf['latest_core'])
-        updates, langupdates = _find_addons_byfile(changed_files, stop=[conf['root_dir'], ])
+        updates, langupdates = _find_addons_byfile(changed_files, stop=[conf['latest_core_dir'], ])
         for addon in _find_addons_inpaths([odoo_base_addons, odoo_addons, loaded_addons]):
             if addon in updates:
                 core_updates.append(addon)
@@ -704,9 +704,7 @@ def _addons_to_update(conf):
         print 'No Updates for the odoo core found!'
 
     # instance-addons
-    changed_files = _changed_files(conf['latest_inst_dir'],
-                                   conf['commit'],
-                                   conf['latest_commit'])
+    changed_files = _changed_files(conf['latest_inst_dir'], conf['commit'], conf['latest_commit'])
     instance_updates, instance_langupdates = _find_addons_byfile(changed_files, stop=[conf['latest_inst_dir'], ])
     if instance_updates:
         print 'Updates for the instance addons found: %s' % instance_updates
