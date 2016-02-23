@@ -131,7 +131,7 @@ def _git_checkout(path, commit='o8', user_name=None):
     return True
 
 
-def _git_latest(target_path, repo, commit='o8', user_name=None):
+def _git_latest(target_path, repo, commit='o8', user_name=None, pull=False):
     print "Get latest git repository %s -b %s in %s." % (repo, commit, target_path)
     # HINT: 'target_path' is the full path where the repo should be cloned to
     if os.path.exists(target_path):
@@ -144,6 +144,11 @@ def _git_latest(target_path, repo, commit='o8', user_name=None):
             raise Exception('CRITICAL: git reset --hard failed!%s' % pp(e))
         try:
             _git_checkout(target_path, commit=commit, user_name=user_name)
+        except Exception as e:
+            raise Exception('CRITICAL: git checkout failed!%s' % pp(e))
+        try:
+            if pull:
+                shell(['git', 'pull'], cwd=target_path, timeout=120, stderr=devnull, user_name=user_name)
         except Exception as e:
             raise Exception('CRITICAL: git pull failed!%s' % pp(e))
         devnull.close()
@@ -378,7 +383,7 @@ def _odoo_update_config(cnf):
         print "\n---- Get latest %s repository for update check." % cnf['instance']
         if cnf['production_server']:
             try:
-                _git_latest(cnf['latest_inst_dir'], cnf['instance_repo'], user_name=cnf['instance'])
+                _git_latest(cnf['latest_inst_dir'], cnf['instance_repo'], user_name=cnf['instance'], pull=True)
             except Exception as e:
                 _finish_update(cnf, error="CRITICAL: Could not get latest repo from github for update check!"+pp(e))
         else:
