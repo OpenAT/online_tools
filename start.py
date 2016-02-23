@@ -65,12 +65,12 @@ def shell(*args, **kwargs):
             kwargs.pop('user_name')
             print "Shell user name: %s pid: %s gid: %s" % (user.pw_name, user.pw_uid, user.pw_gid)
             # print "ENV: %s" % env
-            print "CWD: %s" % kwargs.get('cwd', os.getcwd())
-            print "Command: %s" % args[0]
         except Exception as e:
             print "WARNING: User %s not found on this machine! " \
                   "Will run as %s.\n%s\n" % (kwargs.get('user_name'), pwd.getpwuid(os.getuid())[0], pp(e))
             kwargs.pop('user_name')
+        print "Shell Command: %s" % args[0]
+        print "Shell CWD: %s" % kwargs.get('cwd', os.getcwd())
     return subprocess32.check_output(*args, **kwargs)
 
 
@@ -149,7 +149,8 @@ def _git_latest(target_path, repo, commit='o8', user_name=None):
         devnull.close()
     else:
         # Git repo does not exist
-        _git_clone(repo, branch=commit, cwd=os.path.dirname(target_path), user_name=user_name)
+        _git_clone(repo, branch=commit, cwd=os.path.dirname(target_path), target=os.path.basename(target_path),
+                   user_name=user_name)
     print "Get latest git repository done."
     return True
 
