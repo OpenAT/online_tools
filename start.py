@@ -87,13 +87,11 @@ def _git_get_hash(path):
 def _git_submodule(path, user_name=None):
     print "Git update submodule --init --recursive in %s." % path
     assert os.path.exists(path), 'CRITICAL: Path not found: %s' % path
-    devnull = open(os.devnull, 'w')
     try:
-        shell(['git', 'submodule', 'update', '--init', '--recursive'], cwd=path, timeout=1200, stderr=devnull,
+        shell(['git', 'submodule', 'update', '--init', '--recursive'], cwd=path, timeout=1200,
               user_name=user_name)
     except Exception as e:
         raise Exception('CRITICAL: Git submodule update %s failed!%s' % (path, pp(e)))
-    devnull.close()
     return True
 
 
@@ -116,18 +114,16 @@ def _git_clone(repo, branch='o8', cwd='', target='', user_name=None):
 def _git_checkout(path, commit='o8', user_name=None):
     print "Git checkout %s in %s." % (commit, path)
     assert os.path.exists(path), 'CRITICAL: Path not found: %s' % path
-    devnull = open(os.devnull, 'w')
     try:
         print "Git fetch before checkout %s" % path
-        shell(['git', 'fetch'], cwd=path, timeout=120, stderr=devnull, user_name=user_name)
+        shell(['git', 'fetch'], cwd=path, timeout=120, user_name=user_name)
     except Exception as e:
         print 'ERROR: git fetch failed before checkout!%s' % pp(e)
     try:
-        shell(['git', 'checkout', commit], cwd=path, timeout=60, stderr=devnull, user_name=user_name)
+        shell(['git', 'checkout', commit], cwd=path, timeout=60, user_name=user_name)
         _git_submodule(path, user_name=user_name)
     except Exception as e:
         raise Exception('CRITICAL: Git checkout %s failed!%s' % (commit, pp(e)))
-    devnull.close()
     return True
 
 
@@ -880,7 +876,7 @@ def _odoo_update(conf):
             # Get correct instance commit
             print '\nCheckout the correct commit ID for instance repo %s' % conf['latest_commit']
             update_log += 'Checkout the correct commit ID for instance repo %s' % conf['latest_commit']
-            update_log += _git_checkout(conf['instance_dir'], conf['latest_commit'], user_name=conf['instance'])
+            _git_checkout(conf['instance_dir'], conf['latest_commit'], user_name=conf['instance'])
 
             # Update productive instance
             print '\nUpdating the production database. (Please be patient)'
@@ -888,27 +884,36 @@ def _odoo_update(conf):
             update_log += shell(odoo_server + conf['startup_args'] + args, cwd=odoo_cwd, timeout=600,
                                 user_name=conf['instance'])
 
+            # Update successful
+            print "Update successful!\nStart service %s" % conf['instance']
+            if _service_control(conf['instance'], running=True):
+                _finish_update(conf, success='Final update successful and instance UP!\n\n'+update_log)
+            else:
+                _finish_update(conf, error='CRITICAL: Final update successful but instance DOWN!\n\n'+update_log)
+
         except Exception as e:
             print "\nCRITICAL: Final update on production instance failed! %s" % pp(e)
             # Update failed - try to restore backup
             try:
                 # Restore correct commit
-                print "Restore pre-update instance commit."
+                print "\n-- Restore pre-update instance commit."
                 _git_checkout(conf['instance_dir'], conf['commit'], user_name=conf['instance'])
 
                 # Restore database and data_dir
-                print "Restore pre-update database and filestore."
+                print "\n -- Restore pre-update database and filestore."
                 _odoo_restore(backup, conf, data_dir_target=conf['data_dir'], database_target_url=conf['db_url'])
+
             except Exception as e:
+                # RESTORE FAILED!
                 return _finish_update(conf, error='CRITICAL: Update failed! DATABASE NOT RESTORED!'+pp(e),
                                       restore_failed='True')
 
-        # Restore successful > start service
-        print "Start service %s" % conf['instance']
-        if _service_control(conf['instance'], running=True):
-            _finish_update(conf, success='UPDATE done! Instance up!\n\n'+update_log)
-        else:
-            _finish_update(conf, error='CRITICAL: Update done but instance can not be started!\n\n'+update_log)
+            # Restore successful after failed update
+            print "Start service %s" % conf['instance']
+            if _service_control(conf['instance'], running=True):
+                _finish_update(conf, success='ERROR: UPDATE failed! Restore successful! Instance UP!\n\n'+update_log)
+            else:
+                _finish_update(conf, error='CRITICAL: UPDATE failed! Restore successful! Instance DOWN!\n\n'+update_log)
 
     else:
         print "WARNING: Development server found! Run the final update skipped!"
