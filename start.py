@@ -575,7 +575,7 @@ def _odoo_restore(backup_dir, conf, data_dir_target='', database_target_url=''):
     if os.path.exists(pj(backup_dir, 'dump.sql')):
         # database
         database_source = pj(backup_dir, 'dump.sql')
-        database_restore_cmd = ['psql', '--dbname='+database_target_url, '-f', database_source]
+        database_restore_cmd = ['psql', '-d', database_target_url, '-f', database_source]
 
     print "\nRESTORE of %s to data_dir_target %s and db_target %s " % (backup_dir, data_dir_target, database_target_url)
     assert os.path.exists(data_dir_source), "ERROR: Restore directory is missing: %s" % data_dir_source
@@ -775,7 +775,9 @@ def _compare_urls(url1, url2, wanted_simmilarity=1.0):
         url1_content = url1.read()
         url2 = urllib2.urlopen(url2)
         url2_content = url2.read()
-        if wanted_simmilarity >= difflib.SequenceMatcher(None, url1_content, url2_content).ratio():
+        simmilarity = difflib.SequenceMatcher(None, url1_content, url2_content).ratio()
+        print "Websites match to %s percent." % simmilarity*100
+        if wanted_simmilarity >= simmilarity:
             return True
     except Exception as e:
         print "ERROR: Could not compare websites:%s" % pp(e)
@@ -846,8 +848,8 @@ def _odoo_update(conf):
 
         # Update the dry-run instance
         print 'Updating the dry-run database. (Please be patient)'
-        update_log = '\n%s\n%s' % ('Addons to update: ', conf['addons_to_update_csv'])
-        update_log = '%s%s\n%s' % ('Addons to install: ', conf['addons_to_install_csv'], update_log)
+        update_log = '\n%s%s' % ('Addons to update: ', conf['addons_to_update_csv'])
+        update_log = '%s%s\n%s\n' % ('Addons to install: ', conf['addons_to_install_csv'], update_log)
         update_log += '\nUpdating the dry-run database. (Please be patient)\n'
         update_log += shell(odoo_server + conf['latest_startup_args'] + args, cwd=odoo_cwd, timeout=600,
                             user_name=conf['instance'])
@@ -855,7 +857,7 @@ def _odoo_update(conf):
         return _finish_update(conf, error='CRITICAL: Update dry-run failed!'+pp(e))
 
     # 3.1.1) Compare webpages (and permanently Start the Dry-Run Instance).
-    print "\nStart the Dry-Run instance service permanently and check webpages for any changes."
+    print "\n-- Start the Dry-Run instance service permanently and check webpages for any changes."
     if conf['production_server']:
         # Start latest instance
         if _service_control(conf['latest_instance'], running=True):
@@ -867,16 +869,16 @@ def _odoo_update(conf):
         print "WARNING: Development server found! Compare Webpages skipped!"
 
     # 3.2) Update of production instance
-    print "\nRun the final update on production instance. Service will be stopped!"
+    print "\n-- Run the final update on production instance. Service will be stopped!"
     if conf['production_server']:
         try:
             # Stop service
-            print "Stop service %s." % conf['instance']
+            print "\nStop service %s." % conf['instance']
             if not _service_control(conf['instance'], running=False):
                 raise Exception('ERROR: Could not stop service %s' % conf['instance'])
 
             # Get correct instance commit
-            print 'Checkout the correct commit ID for instance repo %s' % conf['latest_commit']
+            print '\nCheckout the correct commit ID for instance repo %s' % conf['latest_commit']
             update_log += 'Checkout the correct commit ID for instance repo %s' % conf['latest_commit']
             update_log += _git_checkout(conf['instance_dir'], conf['latest_commit'], user_name=conf['instance'])
 
@@ -885,6 +887,7 @@ def _odoo_update(conf):
             update_log += 'Updating the production database. (Please be patient)'
             update_log += shell(odoo_server + conf['startup_args'] + args, cwd=odoo_cwd, timeout=600,
                                 user_name=conf['instance'])
+
         except Exception as e:
             print "\nCRITICAL: Final update on production instance failed! %s" % pp(e)
             # Update failed - try to restore backup
