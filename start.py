@@ -588,6 +588,7 @@ def _odoo_restore(backup_dir, conf, data_dir_target='', database_target_url=''):
     print 'Restore of database at %s to %s' % (backup_dir, database_target_url)
     try:
         datname = "'%s'" % database_name
+        postgres_db_url = database_target_url.rsplit('/', 1)[-2] + 'postgres'
         # Drop Connections
         sql_drop_conn = "SELECT pg_terminate_backend(pid) \
                          FROM pg_stat_activity \
@@ -596,7 +597,7 @@ def _odoo_restore(backup_dir, conf, data_dir_target='', database_target_url=''):
         cmd_drop_conn = ['psql', '-q', '-c', sql_drop_conn, '-d', database_target_url]
         # Drop DB
         sql_drop_db = "DROP DATABASE %s ;" % database_name
-        cmd_drop_db = ['psql', '-q', '-c', sql_drop_db, '-d', database_target_url]
+        cmd_drop_db = ['psql', '-q', '-c', sql_drop_db, '-d', postgres_db_url]
         # Create DB
         sql_create_db = "CREATE DATABASE %s \
                          WITH OWNER %s \
@@ -604,8 +605,7 @@ def _odoo_restore(backup_dir, conf, data_dir_target='', database_target_url=''):
                          ENCODING 'UTF8' \
                          LC_COLLATE 'de_DE.UTF8' \
                          LC_CTYPE 'de_DE.UTF8' ;" % (database_name, conf['instance'])
-        create_db_url = database_target_url.rsplit('/', 1)[-2] + 'postgres'
-        cmd_create_db = ['psql', '-q', '-c', sql_create_db, '-d', create_db_url]
+        cmd_create_db = ['psql', '-q', '-c', sql_create_db, '-d', postgres_db_url]
         with open(os.devnull, 'w') as devnull:
             shell(cmd_drop_conn, timeout=240,)
             shell(cmd_drop_db, timeout=240,)
