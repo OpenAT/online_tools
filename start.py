@@ -870,9 +870,10 @@ def _odoo_update(conf):
 if __name__ == "__main__":
 
     # Make sure there is no = used for sys args
-    assert any("=" in s for s in sys.argv[1:]) == False, 'ERROR: Do not use = in startup arguments!\n' \
-                                                         'Wrong: --instance_dir=/odoo/dadi\n' \
-                                                         'Correct: --instance_dir /odoo/dadi'
+    #assert any("=" in s for s in sys.argv[1:]) == False, 'ERROR: Do not use = in startup arguments!\n' \
+    #                                                     'Wrong: --instance_dir=/odoo/dadi\n' \
+    #                                                     'Correct: --instance_dir /odoo/dadi'
+    # TODO: Check if --addons sys.argv
 
     # Get the instance_dir
     instance_dir = sys.argv[sys.argv.index('--instance-dir')+1]
