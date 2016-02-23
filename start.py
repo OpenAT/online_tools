@@ -556,6 +556,7 @@ def _odoo_restore(backup_dir, conf, data_dir_target='', database_target_url=''):
     # database
     database_source = pj(backup_dir, 'db.dump')
     database_target_url = database_target_url or conf['db_url']
+    database_target_url = '"%s"' % database_target_url
 
     database_name = database_target_url.rsplit('/', 1)[-1]
     database_restore_cmd = ['pg_restore', '--format=c', '--no-owner', '--dbname='+database_target_url, database_source]
@@ -588,7 +589,7 @@ def _odoo_restore(backup_dir, conf, data_dir_target='', database_target_url=''):
     print 'Restore of database at %s to %s' % (backup_dir, database_target_url)
     try:
         # Drop the Database first (max_locks_per_transaction = 256 or higher is required for this to work!)
-        sqldrop = 'DROP schema public CASCADE;CREATE schema public;'
+        sqldrop = '"DROP SCHEMA IF EXISTS public CASCADE;CREATE SCHEMA public AUTHORIZATION %s;"' % database_name
         dropdb = ['psql', '-q', '--command='+sqldrop, '--dbname='+database_target_url, ]
         with open(os.devnull, 'w') as devnull:
             shell(dropdb, timeout=120, stderr=devnull)
@@ -732,7 +733,8 @@ def _finish_update(conf, success=str(), error=str(), restore_failed='False'):
 
     # Remove update.lock file
     try:
-        os.remove(conf['update_lock_file'])
+        if os.path.isfile(conf['update_lock_file']):
+            os.remove(conf['update_lock_file'])
     except Exception as e:
         print 'ERROR: Could not remove update lock file! %s%s' % (conf['update_lock_file'], pp(e))
 
