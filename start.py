@@ -558,7 +558,7 @@ def _odoo_restore(backup_dir, conf, data_dir_target='', database_target_url=''):
     database_target_url = database_target_url or conf['db_url']
 
     database_name = database_target_url.rsplit('/', 1)[-1]
-    database_restore_cmd = ['pg_restore', '--format=c', '--no-owner', '--dbname='+database_target_url, database_source]
+    database_restore_cmd = ['pg_restore', '--format=c', '--no-owner', '-n', 'public', '--dbname='+database_target_url, database_source]
 
     # data_dir
     data_dir_source = pj(backup_dir, 'filestore')
