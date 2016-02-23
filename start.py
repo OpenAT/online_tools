@@ -219,6 +219,7 @@ def _odoo_config(instance_path):
 
     if configfile:
         assert os.path.isfile(configfile), "CRITICAL: Config file not found at: %s" % configfile
+        print "Read configfile server.conf from: %s" % configfile
         config = ConfigParser.SafeConfigParser()
         config.read(configfile)
         cnf.update(dict(config.items('options')))
