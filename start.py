@@ -30,8 +30,10 @@ def _change_user(user_uid, user_gid):
     def inner():
         try:
             print "Before shell command user_id %s group_id %s" % (os.getuid(), os.getgid())
-            os.setegid(user_gid)
-            os.seteuid(user_uid)
+            #os.setegid(user_gid)
+            #os.seteuid(user_uid)
+            os.setresgid(user_gid, user_gid, user_gid)
+            os.setresuid(user_uid, user_gid, user_gid)
             print "Changed to user_id %s group_id %s" % (os.getuid(), os.getgid())
         except Exception as e:
             print 'WARNING: Could not change user_id and group_id!\n%s\n' % pp(e)
