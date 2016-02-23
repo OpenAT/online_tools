@@ -30,8 +30,8 @@ def _change_user(user_uid, user_gid):
     def inner():
         try:
             print "Before shell command user_id %s group_id %s" % (os.getuid(), os.getgid())
-            #os.setegid(user_gid)
-            #os.seteuid(user_uid)
+            # os.setegid(user_gid)
+            # os.seteuid(user_uid)
             os.setresgid(user_gid, user_gid, user_gid)
             os.setresuid(user_uid, user_gid, user_gid)
             print "Changed to user_id %s group_id %s" % (os.getuid(), os.getgid())
@@ -60,7 +60,7 @@ def shell(*args, **kwargs):
             kwargs.update({
                 'preexec_fn': _change_user(user.pw_uid, user.pw_gid),
                 'env': env,
-                #'shell': True,
+                # 'shell': True,
             })
             kwargs.pop('user_name')
             print "Shell user name: %s pid: %s gid: %s" % (user.pw_name, user.pw_uid, user.pw_gid)
@@ -75,7 +75,7 @@ def shell(*args, **kwargs):
 
 
 def _git_get_hash(path):
-    print "\nGit get commit id %s." % (path)
+    print "\nGit get commit id %s." % path
     assert os.path.exists(path), 'CRITICAL: Path not found: %s' % path
     try:
         hashid = shell(['git', 'log', '-n', '1', '--pretty=format:%H'], cwd=path)
@@ -85,7 +85,7 @@ def _git_get_hash(path):
 
 
 def _git_submodule(path, user_name=None):
-    print "Git update submodule --init --recursive in %s." % (path)
+    print "Git update submodule --init --recursive in %s." % path
     assert os.path.exists(path), 'CRITICAL: Path not found: %s' % path
     devnull = open(os.devnull, 'w')
     try:
@@ -355,7 +355,7 @@ def _odoo_update_config(cnf):
         cnf['run_update'] = True
 
         # Create update lock file (Starting Update now)
-        with open(cnf['update_lock_file'],'a+') as update_lock_file:
+        with open(cnf['update_lock_file'], 'a+'):
             assert os.path.isfile(cnf['update_lock_file']), 'CRITICAL: Could not create update_lock_file %s' \
                                                             % cnf['update_lock_file']
 
@@ -389,7 +389,8 @@ def _odoo_update_config(cnf):
         cnf['latest_commit'] = _git_get_hash(cnf['latest_inst_dir'])
 
         # latest instance.ini
-        assert os.path.isfile(pj(cnf['latest_inst_dir'], 'instance.ini')), 'CRITICAL: instance.ini missing for latest repo!'
+        assert os.path.isfile(pj(cnf['latest_inst_dir'], 'instance.ini')), \
+            'CRITICAL: instance.ini missing for latest repo!'
         instance_latest = ConfigParser.SafeConfigParser()
         instance_latest.read(pj(cnf['latest_inst_dir'], 'instance.ini'))
         instance_latest = dict(instance_latest.items('options'))
@@ -407,7 +408,8 @@ def _odoo_update_config(cnf):
         except Exception as e:
             _finish_update(cnf, error="CRITICAL: Could not get cores!"+pp(e))
 
-        # latest core.ini
+        # latest core.ini (core.ini is optional!)
+        core_update = dict()
         if os.path.exists(pj(cnf['latest_core_dir'], 'core.ini')):
             core_update = ConfigParser.SafeConfigParser()
             core_update.read(pj(cnf['latest_core_dir'], 'core.ini'))
@@ -457,7 +459,7 @@ def _odoo_update_config(cnf):
                 'xmlrpcs_port': str(int(cnf.get('xmlrpcs_port', 8001))+10),
             }
             if cnf['production_server']:
-                values.update({'logfile': '/var/log/online/' + cnf['instance'] + '/' + cnf['latest_instance'] + '.log',})
+                values.update({'logfile': '/var/log/online/' + cnf['instance'] + '/' + cnf['latest_instance'] + '.log'})
             for key, value in values.iteritems():
                 latest_server_conf.set('options', str(key), str(value))
             with open(pj(cnf['latest_inst_dir'], 'server.conf'), 'w+') as writefile:
@@ -523,7 +525,8 @@ def _odoo_backup(conf, backup_target=None):
     # Backup database
     try:
         print 'Backup of database at %s to %s' % (conf['db_name'], backup_target)
-        cmd = ['pg_dump', '--format=c', '--no-owner', '--dbname='+conf['db_url'], '--file='+pj(backup_target, 'db.dump')]
+        cmd = ['pg_dump', '--format=c', '--no-owner',
+               '--dbname='+conf['db_url'], '--file='+pj(backup_target, 'db.dump')]
         shell(cmd, timeout=300)
     except Exception as e:
         raise Exception('CRITICAL: Backup of database failed!\n%s\n' % pp(e))
@@ -555,7 +558,6 @@ def _odoo_restore(backup_dir, conf, data_dir_target='', database_target_url=''):
     assert os.path.exists(data_dir_source), "ERROR: Restore directory is missing: %s" % data_dir_source
     assert os.path.exists(database_source), "ERROR: Restore database file is missing: %s" % database_source
 
-
     # Restore data_dir
     print 'Restore of data_dir at %s to %s' % (backup_dir, data_dir_target)
     try:
@@ -563,7 +565,7 @@ def _odoo_restore(backup_dir, conf, data_dir_target='', database_target_url=''):
             shutil.rmtree(data_dir_target)
         shutil.copytree(data_dir_source, data_dir_target)
     except Exception as e:
-        raise Exception('CRITICAL: Restore of data_dir failed!\ne\n' % pp(e))
+        raise Exception('CRITICAL: Restore of data_dir failed!\n%s\n' % pp(e))
 
     # Restore database
     print 'Restore of database at %s to %s' % (backup_dir, database_target_url)
@@ -795,10 +797,12 @@ def _odoo_update(conf):
 
         # Update the dry-run instance
         print 'Updating the dry-run database. (Please be patient)'
-        update_log = '\nUpdating the dry-run database. (Please be patient)'
+        update_log = '\n%s\n%s' % ('Addons to update: ', conf['addons_to_update_csv'])
+        update_log = '%s%s\n%s' % ('Addons to install: ', conf['addons_to_install_csv'], update_log)
+        update_log += '\nUpdating the dry-run database. (Please be patient)\n'
         update_log += shell(odoo_server + conf['latest_startup_args'] + args, cwd=odoo_cwd, timeout=600)
     except Exception as e:
-        return _finish_update(conf, error='CRITICAL: Update dry-run failed!\n'+pp(e))
+        return _finish_update(conf, error='CRITICAL: Update dry-run failed!'+pp(e))
 
     # 3.1.1) Compare webpages (and permanently Start the Dry-Run Instance).
     print "\nStart the Dry-Run instance service permanently and check webpages for any changes."
@@ -822,13 +826,15 @@ def _odoo_update(conf):
                 raise Exception('ERROR: Could not stop service %s' % conf['instance'])
 
             # Get correct instance commit
-            update_log += 'Checkout the correct commit ID %s' % conf['latest_commit']
+            print 'Checkout the correct commit ID for instance repo %s' % conf['latest_commit']
+            update_log += 'Checkout the correct commit ID for instance repo %s' % conf['latest_commit']
             update_log += _git_checkout(conf['instance_dir'], conf['latest_commit'], user_name=conf['instance'])
 
             # Update productive instance
+            print 'Updating the production database. (Please be patient)'
             update_log += 'Updating the production database. (Please be patient)'
             update_log += shell(odoo_server + conf['startup_args'] + args, cwd=odoo_cwd, timeout=600)
-        except Exception as e:
+        except:
 
             # Update failed - try to restore backup
             try:
@@ -838,21 +844,19 @@ def _odoo_update(conf):
                 # Restore database and data_dir
                 _odoo_restore(backup, conf, data_dir_target=conf['data_dir'], database_target_url=conf['db_url'])
             except Exception as e:
-                return _finish_update(conf, error='CRITICAL: Update failed! DATABASE NOT RESTORED!\n'+pp(e),
+                return _finish_update(conf, error='CRITICAL: Update failed! DATABASE NOT RESTORED!'+pp(e),
                                       restore_failed='True')
 
         # Restore successful > start service
+        print "Start service %s" % conf['instance']
         if _service_control(conf['instance'], running=True):
-            return _finish_update(conf, error='CRITICAL: Update failed! Instance restored and up!\n'+pp(e))
+            _finish_update(conf, success='UPDATE done! Instance up!\n\n'+update_log)
         else:
-            return _finish_update(conf, error='CRITICAL: Update failed! Instance restored but DOWN!\n'+pp(e))
+            _finish_update(conf, error='CRITICAL: Update done but instance can not be started!\n\n'+update_log)
 
-        # Update successful
-        return _finish_update(conf, success='UPDATE done! Instance up!\n'+addons_to_update_csv+'\n'+update_log)
     else:
         print "WARNING: Development server found! Run the final update skipped!"
-        _finish_update(conf, success='Dry-Run update done!\n'+addons_to_update_csv+'\n'+update_log)
-
+        _finish_update(conf, success='Development server found! Only Dry-Run update done!\n\n'+update_log)
 
 
 # ----- START MAIN ROUTINE -----
@@ -893,7 +897,6 @@ if __name__ == "__main__":
             _odoo_restore(sys.argv[sys.argv.index('--restore')+1], odoo_config)
         sys.argv.pop(sys.argv.index('--restore')+1)
         sys.argv.remove('--restore')
-
 
     # Update FS-Online
     if '--update' in sys.argv:
