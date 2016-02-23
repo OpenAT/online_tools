@@ -232,9 +232,14 @@ def _odoo_config(instance_path):
     cnf['status_file'] = pj(instance_path, 'status.ini')
     status_file = dict()
     if os.path.isfile(cnf['status_file']):
-        status_file = ConfigParser.SafeConfigParser()
-        status_file.read(cnf['status_file'])
-        status_file = dict(status_file.items('options'))
+        try:
+            print "Read status.ini from: %s" % cnf['status_file']
+            status_file = ConfigParser.SafeConfigParser()
+            status_file.read(cnf['status_file'])
+            status_file = dict(status_file.items('options'))
+        except:
+            status_file = dict()
+            print "ERROR: Could not read status.ini from: %s" % cnf['status_file']
     cnf['restore_failed'] = status_file.get('restore_failed', 'False')
     cnf['update_failed'] = status_file.get('update_failed', 'False')
     cnf['no_update'] = status_file.get('no_update', 'False')
@@ -367,6 +372,9 @@ def _odoo_update_config(cnf):
         with open(cnf['update_lock_file'], 'a+'):
             assert os.path.isfile(cnf['update_lock_file']), 'CRITICAL: Could not create update_lock_file %s' \
                                                             % cnf['update_lock_file']
+        if cnf['production_server']:
+            shell(['chmod', 'o=', cnf['update_lock_file']])
+            shell(['chown', cnf['instance']+':'+cnf['instance'], cnf['update_lock_file']])
 
         # Database
         cnf['latest_db_name'] = cnf['db_name'] + '_update'
@@ -704,6 +712,9 @@ def _finish_update(conf, success=str(), error=str(), restore_failed='False'):
 
         with open(conf['status_file'], 'w+') as writefile:
             status_ini.write(writefile)
+        if conf['production_server']:
+            shell(['chmod', 'o=', conf['status_file']])
+            shell(['chown', conf['instance']+':'+conf['instance'], conf['status_file']])
     except Exception as e:
         print 'ERROR: Could not update %s%s' % (conf['status_file'], pp(e))
 
@@ -713,6 +724,9 @@ def _finish_update(conf, success=str(), error=str(), restore_failed='False'):
             logfile.write('---------- Update '+conf['start_time']+' ----------\n')
             logfile.write(success+'\n')
             logfile.write(error+'\n\n')
+        if conf['production_server']:
+            shell(['chmod', 'o=', conf['update_log_file']])
+            shell(['chown', conf['instance']+':'+conf['instance'], conf['update_log_file']])
     except Exception as e:
         print 'ERROR: Could not write %s%s' % (conf['update_log_file'], pp(e))
 
