@@ -275,7 +275,7 @@ def _odoo_config(instance_path):
     cnf['data_dir'] = cnf.get('data_dir', pj(cnf['instance_dir'], 'data_dir'))
     cnf['backup_dir'] = pj(cnf['instance_dir'], 'update')
     cnf['log_dir'] = pj(cnf['instance_dir'], 'log')
-    if _service_exists(cnf['instance']):
+    if _service_exists(cnf['instance']) and '_update' not in cnf.get('db_name', cnf['instance']):
         assert os.path.exists(cnf['backup_dir']), "CRITICAL: Backup directory is missing! %s" % cnf['backup_dir']
         assert os.path.exists(cnf['log_dir']), "CRITICAL: Log directory is missing! %s" % cnf['log_dir']
 
@@ -869,7 +869,8 @@ def _odoo_update(conf):
             url = 'http://'+conf['instance']+'.datadialgo.net'
             latest_url = 'http://'+conf['latest_instance']+'.datadialgo.net'
             if not _compare_urls(url, latest_url, wanted_simmilarity=0.8):
-                return _finish_update(conf, error='CRITICAL: Websites are different!\n')
+                print "WARNING: Webpages seem to be different!"
+                # return _finish_update(conf, error='CRITICAL: Websites are different!\n')
     else:
         print "WARNING: Development server found! Compare Webpages skipped!"
 
