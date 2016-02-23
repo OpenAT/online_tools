@@ -560,9 +560,6 @@ def _odoo_restore(backup_dir, conf, data_dir_target='', database_target_url=''):
     database_name = database_target_url.rsplit('/', 1)[-1]
     database_restore_cmd = ['pg_restore', '--format=c', '--no-owner', '--dbname='+database_target_url, database_source]
 
-    # Wrap url inside ""
-    database_target_url = '"%s"' % database_target_url
-
     # data_dir
     data_dir_source = pj(backup_dir, 'filestore')
     data_dir_target = data_dir_target or conf['data_dir']
@@ -596,10 +593,9 @@ def _odoo_restore(backup_dir, conf, data_dir_target='', database_target_url=''):
                          FROM pg_stat_activity \
                          WHERE pg_stat_activity.datname = %s \
                          AND pid <> pg_backend_pid() ;" % datname
-        sql_drop_conn = '"%s"' % sql_drop_conn
         cmd_drop_conn = ['psql', '-q', '-c', sql_drop_conn, '-d', database_target_url]
         # Drop DB
-        sql_drop_db = "DROP DATABASE %s ;" % datname
+        sql_drop_db = "DROP DATABASE %s ;" % database_name
         cmd_drop_db = ['psql', '-q', '-c', sql_drop_db, '-d', database_target_url]
         # Create DB
         sql_create_db = "CREATE DATABASE %s \
@@ -608,12 +604,12 @@ def _odoo_restore(backup_dir, conf, data_dir_target='', database_target_url=''):
                          ENCODING 'UTF8' \
                          LC_COLLATE 'de_DE.UTF8' \
                          LC_CTYPE 'de_DE.UTF8' ;" % (database_name, conf['instance'])
-        sql_create_db_url = database_target_url.rsplit('/', 1)[-2] + 'postgres'
-        cmd_create_db = ['psql', '-q', '-c', sql_create_db, '-d', sql_create_db_url]
+        create_db_url = database_target_url.rsplit('/', 1)[-2] + 'postgres'
+        cmd_create_db = ['psql', '-q', '-c', sql_create_db, '-d', create_db_url]
         with open(os.devnull, 'w') as devnull:
-            shell(cmd_drop_conn, timeout=240, stderr=devnull)
-            shell(cmd_drop_db, timeout=240, stderr=devnull)
-            shell(cmd_create_db, timeout=240, stderr=devnull)
+            shell(cmd_drop_conn, timeout=240,)
+            shell(cmd_drop_db, timeout=240,)
+            shell(cmd_create_db, timeout=240,)
     except Exception as e:
         raise Exception('CRITICAL: Drop (and create) database failed!%s' % pp(e))
     try:
