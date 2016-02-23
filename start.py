@@ -61,8 +61,9 @@ def shell(*args, **kwargs):
                 'shell': True,
             })
             kwargs.pop('user_name')
-            print "Shell user name: %s pid: %s gid: %s" % (user, user.pw_uid, user.pw_gid)
+            print "Shell user name: %s pid: %s gid: %s" % (user.pw_name, user.pw_uid, user.pw_gid)
             print "ENV: %s" % env
+            print "CWD: %s" % kwargs.get('cwd', os.getcwd())
         except Exception as e:
             print "WARNING: User %s not found on this machine! " \
                   "Will run as %s.\n%s\n" % (kwargs.get('user_name'), pwd.getpwuid(os.getuid())[0], pp(e))
@@ -372,7 +373,10 @@ def _odoo_update_config(cnf):
         # HINT: Must be run as the instance user because of git ssh!
         print "\n---- Get latest %s repository for update check." % cnf['instance']
         if cnf['production_server']:
-            _git_latest(cnf['latest_inst_dir'], cnf['instance_repo'], user_name=cnf['instance'])
+            try:
+                _git_latest(cnf['latest_inst_dir'], cnf['instance_repo'], user_name=cnf['instance'])
+            except Exception as e:
+                _finish_update(cnf, error="CRITICAL: Could not get latest repo from github for update check!"+pp(e))
         else:
             print "WARNING: Development server found! Get latest repository for update check skipped!"
         print "---- Get latest %s repository done" % cnf['instance']
