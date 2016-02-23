@@ -171,7 +171,8 @@ def _service_running(service_name):
         with open(pidfile, 'r') as pidfile:
             pid = str(pidfile.readline())
             print "Service pidfile contents %s" % pid
-            return os.path.isfile(pid)
+            if os.path.exists(pj('/proc', pid)):
+                return True
     return False
 
 
@@ -885,7 +886,7 @@ def _odoo_update(conf):
                                 user_name=conf['instance'])
 
             # Update successful
-            print "Update successful!\nStart service %s" % conf['instance']
+            print "\nUpdate successful!\nStart service %s" % conf['instance']
             if _service_control(conf['instance'], running=True):
                 _finish_update(conf, success='Final update successful and instance UP!\n\n'+update_log)
             else:
@@ -909,7 +910,7 @@ def _odoo_update(conf):
                                       restore_failed='True')
 
             # Restore successful after failed update
-            print "Start service %s" % conf['instance']
+            print "\nStart service %s" % conf['instance']
             if _service_control(conf['instance'], running=True):
                 _finish_update(conf, success='ERROR: UPDATE failed! Restore successful! Instance UP!\n\n'+update_log)
             else:
