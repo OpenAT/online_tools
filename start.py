@@ -62,8 +62,9 @@ def shell(*args, **kwargs):
             })
             kwargs.pop('user_name')
             print "Shell user name: %s pid: %s gid: %s" % (user.pw_name, user.pw_uid, user.pw_gid)
-            print "ENV: %s" % env
+            # print "ENV: %s" % env
             print "CWD: %s" % kwargs.get('cwd', os.getcwd())
+            print "Command: %s" % args[0]
         except Exception as e:
             print "WARNING: User %s not found on this machine! " \
                   "Will run as %s.\n%s\n" % (kwargs.get('user_name'), pwd.getpwuid(os.getuid())[0], pp(e))
