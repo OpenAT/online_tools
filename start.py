@@ -208,15 +208,17 @@ def _odoo_config(instance_path):
     # server.conf (or -c)
     print "\nReading config file."
     configfile = False
+
     if '-c' in sys.argv:
         configfile = sys.argv[sys.argv.index('-c')+1]
-        assert os.path.isfile(configfile), "CRITICAL: -c given but config file not found at: %s" % configfile
     elif os.path.isfile(pj(instance_path, 'server.conf')):
         print "Using default config file server.conf!"
         configfile = pj(instance_path, 'server.conf')
         sys.argv.append('-c')
         sys.argv.append(configfile)
+
     if configfile:
+        assert os.path.isfile(configfile), "CRITICAL: Config file not found at: %s" % configfile
         config = ConfigParser.SafeConfigParser()
         config.read(configfile)
         cnf.update(dict(config.items('options')))
