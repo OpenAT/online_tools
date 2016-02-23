@@ -814,10 +814,10 @@ def _odoo_update(conf):
         return False
 
     # 3.1) Dry-Run the update
-    print "\nDry-Run the update."
+    print "--Dry-Run the update."
     try:
         # Stop Service
-        print "Stopping service %s." % conf['instance']
+        print "Stopping service %s." % conf['latest_instance']
         if conf['production_server']:
             if not _service_control(conf['latest_instance'], running=False):
                 raise Exception('ERROR: Could not stop service %s' % conf['latest_instance'])
@@ -843,7 +843,8 @@ def _odoo_update(conf):
         update_log = '\n%s\n%s' % ('Addons to update: ', conf['addons_to_update_csv'])
         update_log = '%s%s\n%s' % ('Addons to install: ', conf['addons_to_install_csv'], update_log)
         update_log += '\nUpdating the dry-run database. (Please be patient)\n'
-        update_log += shell(odoo_server + conf['latest_startup_args'] + args, cwd=odoo_cwd, timeout=600)
+        update_log += shell(odoo_server + conf['latest_startup_args'] + args, cwd=odoo_cwd, timeout=600,
+                            user_name=conf['instance'])
     except Exception as e:
         return _finish_update(conf, error='CRITICAL: Update dry-run failed!'+pp(e))
 
@@ -876,7 +877,8 @@ def _odoo_update(conf):
             # Update productive instance
             print 'Updating the production database. (Please be patient)'
             update_log += 'Updating the production database. (Please be patient)'
-            update_log += shell(odoo_server + conf['startup_args'] + args, cwd=odoo_cwd, timeout=600)
+            update_log += shell(odoo_server + conf['startup_args'] + args, cwd=odoo_cwd, timeout=600,
+                                user_name=conf['instance'])
         except:
 
             # Update failed - try to restore backup
