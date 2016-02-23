@@ -336,10 +336,11 @@ def _odoo_update_config(cnf):
         cnf['latest_instance'] = cnf['instance'] + '_update'
 
         # Backup (folder for his run of the script)
-        cnf['backup'] = pj(cnf['backup_dir'], cnf['db_name'] + '-pre-update_backup-' + cnf['start_time'])
+        cnf['backup'] = pj(cnf['backup_dir'], cnf['db_name']+'-pre-update_backup-'+cnf['start_time'])
 
         # Logging
-        cnf['update_log_file'] = pj(cnf['log_dir'], cnf['instance'] + '-update-' + cnf['start_time'] + '.log')
+        #cnf['update_log_file'] = pj(cnf['log_dir'], cnf['instance'] + '-update-' + cnf['start_time'] + '.log')
+        cnf['update_log_file'] = pj(cnf['log_dir'], cnf['instance']+'-update'+'.log')
 
         # Check if an update is already running
         cnf['update_lock_file'] = pj(cnf['instance_dir'], 'update.lock')
