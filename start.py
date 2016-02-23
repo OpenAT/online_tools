@@ -58,7 +58,7 @@ def shell(*args, **kwargs):
             kwargs.update({
                 'preexec_fn': _change_user(user.pw_uid, user.pw_gid),
                 'env': env,
-                'shell': True,
+                #'shell': True,
             })
             kwargs.pop('user_name')
             print "Shell user name: %s pid: %s gid: %s" % (user.pw_name, user.pw_uid, user.pw_gid)
