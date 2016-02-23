@@ -170,13 +170,15 @@ def _service_running(service_name):
     if os.path.isfile(pidfile):
         with open(pidfile, 'r') as pidfile:
             pid = str(pidfile.readline())
-            print "Service pidfile contents %s" % pid
-            if os.path.exists(pj('/proc', pid)):
+            proc_dir = pj('/proc', pid)
+            print "Service pidfile contents %s. proc_dir %s" % (pid, proc_dir)
+            if os.path.exists(proc_dir):
+                print "Service is running!"
                 return True
     return False
 
 
-def _service_control(service_name, running, wait=5):
+def _service_control(service_name, running, wait=10):
     print "Set service %s to state running %s" % (service_name, str(running))
     assert running in [True, False], 'CRITICAL: Running can only be True or False %s!' % running
 
@@ -628,7 +630,9 @@ def _odoo_restore(backup_dir, conf, data_dir_target='', database_target_url=''):
 
 
 def _changed_files(gitrepo_path, current, target='Latest'):
+    print "Searching for changed files."
     if current == target:
+        print "WARNING: Current and target commit are the same!"
         return []
     changed_files = []
     gitdiff = ['git', 'diff', '--name-only', '--ignore-submodules=all', '--diff-filter=ACMR']
@@ -646,10 +650,12 @@ def _changed_files(gitrepo_path, current, target='Latest'):
         for f in shell(gitdiff + [current_rev, target_rev], cwd=absolute_path).splitlines():
             changed_files.append(pj(absolute_path, f))
 
+    print "Changed files found: %s\n" % changed_files
     return changed_files
 
 
 def _find_addons_byfile(changed_files, stop=[]):
+    print "Find addons by file."
     updates = langupdates = []
     for f in changed_files:
         filetype = os.path.splitext(f)[1]
@@ -663,6 +669,7 @@ def _find_addons_byfile(changed_files, stop=[]):
                         langupdates.append(os.path.basename(path))
                     break
                 path = os.path.dirname(path)  # cd ..
+    print "Found addons: %s\n" % list(OrderedDict.fromkeys(updates))
     return list(OrderedDict.fromkeys(updates)), list(OrderedDict.fromkeys(langupdates))
 
 
@@ -821,7 +828,7 @@ def _odoo_update(conf):
         return False
 
     # 3.1) Dry-Run the update
-    print "--Dry-Run the update."
+    print "-- Dry-Run the update."
     try:
         # Stop Service
         print "Stopping service %s." % conf['latest_instance']
