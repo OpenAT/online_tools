@@ -169,7 +169,7 @@ def _service_running(service_name):
     print "Check if service %s ist running with pidfile %s" % (service_name, pidfile)
     if os.path.isfile(pidfile):
         with open(pidfile, 'r') as pidfile:
-            pid = str(pidfile.readline())
+            pid = str(pidfile.readline()).rstrip('\n')
             proc_dir = pj('/proc', pid)
             print "Service pidfile contents %s. proc_dir %s" % (pid, proc_dir)
             if os.path.exists(proc_dir):
@@ -655,12 +655,13 @@ def _changed_files(gitrepo_path, current, target='Latest'):
 
 
 def _find_addons_byfile(changed_files, stop=[]):
-    print "Find addons by file."
+    print "Find addons by file. Stop at dir / or %s" % stop
     updates = langupdates = []
     for f in changed_files:
         filetype = os.path.splitext(f)[1]
         if filetype in ('.py', '.xml', '.po', '.pot'):
             path = os.path.dirname(f)
+            print "DEBUG: path %s filetype %s isfile %s %s" % (path, filetype, pj(path, '__openerp__.py'), os.path.isfile(pj(path, '__openerp__.py')))
             while path not in ['/', ] + stop:
                 if os.path.isfile(pj(path, '__openerp__.py')):
                     if filetype in ('.py', '.xml'):
