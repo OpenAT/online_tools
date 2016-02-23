@@ -594,7 +594,7 @@ def _odoo_restore(backup_dir, conf, data_dir_target='', database_target_url=''):
     print 'Restore of database at %s to %s' % (backup_dir, database_target_url)
     try:
         datname = "'%s'" % database_name
-        postgres_db_url = database_target_url.rsplit('/', 1)[-2] + 'postgres'
+        postgres_db_url = database_target_url.rsplit('/', 1)[-2] + '/postgres'
         # Drop Connections
         sql_drop_conn = "SELECT pg_terminate_backend(pid) \
                          FROM pg_stat_activity \
@@ -881,18 +881,20 @@ def _odoo_update(conf):
             update_log += _git_checkout(conf['instance_dir'], conf['latest_commit'], user_name=conf['instance'])
 
             # Update productive instance
-            print 'Updating the production database. (Please be patient)'
+            print '\nUpdating the production database. (Please be patient)'
             update_log += 'Updating the production database. (Please be patient)'
             update_log += shell(odoo_server + conf['startup_args'] + args, cwd=odoo_cwd, timeout=600,
                                 user_name=conf['instance'])
-        except:
-
+        except Exception as e:
+            print "\nCRITICAL: Final update on production instance failed! %s" % pp(e)
             # Update failed - try to restore backup
             try:
                 # Restore correct commit
+                print "Restore pre-update instance commit."
                 _git_checkout(conf['instance_dir'], conf['commit'], user_name=conf['instance'])
 
                 # Restore database and data_dir
+                print "Restore pre-update database and filestore."
                 _odoo_restore(backup, conf, data_dir_target=conf['data_dir'], database_target_url=conf['db_url'])
             except Exception as e:
                 return _finish_update(conf, error='CRITICAL: Update failed! DATABASE NOT RESTORED!'+pp(e),
