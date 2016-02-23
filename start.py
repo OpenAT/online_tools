@@ -161,13 +161,15 @@ def _git_latest(target_path, repo, commit='o8', user_name=None, pull=False):
 
 
 def _service_exists(service_name):
-    if os.path.exists('/etc/init.d/'+service_name):
+    print "Check if service exists at %s" % service_name
+    if os.path.exists(pj('/etc/init.d', service_name)):
         return True
     return False
 
 
 def _service_running(service_name):
     pidfile = pj('/var/run', service_name + '.pid')
+    print "Check if service %s ist running with pidfile %s" % (service_name, pidfile)
     if os.path.isfile(pidfile):
         with open(pidfile, 'r') as pidfile:
             return os.path.isfile(str(pidfile.readline()))
@@ -175,6 +177,7 @@ def _service_running(service_name):
 
 
 def _service_control(service_name, running, wait=5):
+    print "Set service %s to state running %s" % (service_name, str(running))
     assert running in [True, False], 'CRITICAL: Running can only be True or False %s!' % running
 
     if _service_exists(service_name):
