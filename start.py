@@ -707,9 +707,9 @@ def _finish_update(conf, success=str(), error=str(), restore_failed='False'):
     # Write log file
     try:
         with open(conf['update_log_file'], 'a+') as logfile:
-            logfile.write('\n\n---------- Update '+conf['start_time']+' ----------\n')
+            logfile.write('---------- Update '+conf['start_time']+' ----------\n')
             logfile.write(success+'\n')
-            logfile.write(error+'\n')
+            logfile.write(error+'\n\n')
     except Exception as e:
         print 'ERROR: Could not write %s%s' % (conf['update_log_file'], pp(e))
 
