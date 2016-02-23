@@ -7,7 +7,6 @@
 import sys
 import os
 from os.path import join as pj
-from os.path import dirname as opd
 import ConfigParser
 import time
 import shutil
@@ -468,7 +467,7 @@ def _get_cores(conf):
         _git_latest(conf['core_dir'], conf['core_repo'], commit=conf['core'])
 
     # get or create latest core
-    if conf['latest_core_dir'] != conf['core_dir']:
+    if conf.get('latest_core_dir') != conf['core_dir'] and conf.get('latest_core_dir'):
         # get latest core
         if os.path.exists(conf['latest_core_dir']) and not conf['production_server']:
             print 'WARNING: Development server found! Skipping %s clone or checkout' % conf['latest_core_dir']
@@ -479,7 +478,8 @@ def _get_cores(conf):
             _git_latest(conf['latest_core_dir'], conf['core_repo'], commit=conf['latest_core'])
 
     # Set correct rights (runs twice if core_dir = latest_core_dir)
-    for path in [conf['core_dir'], conf['latest_core_dir']]:
+    paths = [conf['core_dir'], conf.get('latest_core_dir')] if conf.get('latest_core_dir') else [conf['core_dir'], ]
+    for path in paths:
         devnull = open(os.devnull, 'w')
         try:
             print "Set correct user and rights for core %s" % path
@@ -699,10 +699,10 @@ def _finish_update(conf, success=str(), error=str(), restore_failed='False'):
         print 'ERROR: Could not remove update lock file! %s\n%s\n' % (conf['update_lock_file'], pp(e))
 
     if success:
-        print "Update done:\n%s " % success
+        print "---- Update done! Log:\n\n%s " % success
         exit(0)
     if error:
-        print "ERROR: Update failed:\n%s" % error
+        print "---- ERROR: Update failed! Log:\n\n%s" % error
         exit(1)
 
 
@@ -829,11 +829,11 @@ def _odoo_update(conf):
                 return _finish_update(conf, error='CRITICAL: Update failed! DATABASE NOT RESTORED!\n'+pp(e),
                                       restore_failed='True')
 
-            # Restore successful > start service
-            if _service_control(conf['instance'], running=True):
-                return _finish_update(conf, error='CRITICAL: Update failed! Instance restored and up!\n'+pp(e))
-            else:
-                return _finish_update(conf, error='CRITICAL: Update failed! Instance restored but DOWN!\n'+pp(e))
+        # Restore successful > start service
+        if _service_control(conf['instance'], running=True):
+            return _finish_update(conf, error='CRITICAL: Update failed! Instance restored and up!\n'+pp(e))
+        else:
+            return _finish_update(conf, error='CRITICAL: Update failed! Instance restored but DOWN!\n'+pp(e))
 
         # Update successful
         return _finish_update(conf, success='UPDATE done! Instance up!\n'+addons_to_update_csv+'\n'+update_log)
@@ -881,6 +881,7 @@ if __name__ == "__main__":
             _odoo_restore(sys.argv[sys.argv.index('--restore')+1], odoo_config)
         sys.argv.pop(sys.argv.index('--restore')+1)
         sys.argv.remove('--restore')
+
 
     # Update FS-Online
     if '--update' in sys.argv:
