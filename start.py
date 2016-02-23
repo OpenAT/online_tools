@@ -446,6 +446,8 @@ def _odoo_update_config(cnf):
                 'xmlrpcs': 'True',
                 'xmlrpcs_port': str(int(cnf.get('xmlrpcs_port', 8001))+10),
             }
+            if cnf['production_server']:
+                values.update({'logfile': '/var/log/online/' + cnf['instance'] + '/' + cnf['latest_instance'] + '.log',})
             for key, value in values.iteritems():
                 latest_server_conf.set('options', str(key), str(value))
             with open(pj(cnf['latest_inst_dir'], 'server.conf'), 'w+') as writefile:
