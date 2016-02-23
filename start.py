@@ -188,7 +188,9 @@ def _service_control(service_name, running, wait=5):
     try:
         shell(['service', service_name, status])
         sleep(wait)
+        print "Running %s and _service_running(service_name) %s " % (running, _service_running(service_name))
         if running != _service_running(service_name):
+            print 'ERROR: Could not set service %s to %s' % (service_name, status)
             raise Exception('ERROR: Could not set service %s to %s' % (service_name, status))
         return True
     except:
