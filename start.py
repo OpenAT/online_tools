@@ -19,7 +19,7 @@ import difflib
 
 
 def pp(e):
-    output = str(e)
+    output = '\n\n'+str(e)+'\n'
     if hasattr(e, 'output'):
         output += str(e.output)+'\n'
     # print output
@@ -36,7 +36,7 @@ def _change_user(user_uid, user_gid):
             os.setresuid(user_uid, user_gid, user_gid)
             print "Changed to user_id %s group_id %s" % (os.getuid(), os.getgid())
         except Exception as e:
-            print 'WARNING: Could not change user_id and group_id!\n%s\n' % pp(e)
+            print 'WARNING: Could not change user_id and group_id!%s' % pp(e)
             return True
     # ATTENTION: not inner() because we want to return the function and not the result!
     return inner
@@ -81,7 +81,7 @@ def _git_get_hash(path):
         hashid = shell(['git', 'log', '-n', '1', '--pretty=format:%H'], cwd=path)
         return hashid
     except Exception as e:
-        raise Exception('CRITICAL: Get commit-hash failed!\n%s\n' % pp(e))
+        raise Exception('CRITICAL: Get commit-hash failed!%s' % pp(e))
 
 
 def _git_submodule(path, user_name=None):
@@ -92,7 +92,7 @@ def _git_submodule(path, user_name=None):
         shell(['git', 'submodule', 'update', '--init', '--recursive'], cwd=path, timeout=1200, stderr=devnull,
               user_name=user_name)
     except Exception as e:
-        raise Exception('CRITICAL: Git submodule update %s failed!\n%s\n' % (path, pp(e)))
+        raise Exception('CRITICAL: Git submodule update %s failed!%s' % (path, pp(e)))
     devnull.close()
     return True
 
@@ -108,7 +108,7 @@ def _git_clone(repo, branch='o8', cwd='', target='', user_name=None):
         shell(['git', 'clone', '-b', branch, repo, target], cwd=cwd, timeout=600, user_name=user_name)
         _git_submodule(target_dir, user_name=user_name)
     except Exception as e:
-        raise Exception('CRITICAL: Git clone %s failed!\n%s\n' % (repo, pp(e)))
+        raise Exception('CRITICAL: Git clone %s failed!%s' % (repo, pp(e)))
     devnull.close()
     return True
 
@@ -121,12 +121,12 @@ def _git_checkout(path, commit='o8', user_name=None):
         print "Git fetch before checkout %s" % path
         shell(['git', 'fetch'], cwd=path, timeout=120, stderr=devnull, user_name=user_name)
     except Exception as e:
-        print 'ERROR: git fetch failed before checkout!\n%s\n' % pp(e)
+        print 'ERROR: git fetch failed before checkout!%s' % pp(e)
     try:
         shell(['git', 'checkout', commit], cwd=path, timeout=60, stderr=devnull, user_name=user_name)
         _git_submodule(path, user_name=user_name)
     except Exception as e:
-        raise Exception('CRITICAL: Git checkout %s failed!\n%s\n' % (commit, pp(e)))
+        raise Exception('CRITICAL: Git checkout %s failed!%s' % (commit, pp(e)))
     devnull.close()
     return True
 
@@ -141,11 +141,11 @@ def _git_latest(target_path, repo, commit='o8', user_name=None):
             print "Git reset --hard %s" % target_path
             shell(['git', 'reset', '--hard'], cwd=target_path, timeout=120, stderr=devnull, user_name=user_name)
         except Exception as e:
-            raise Exception('CRITICAL: git reset --hard failed!\n%s\n' % pp(e))
+            raise Exception('CRITICAL: git reset --hard failed!%s' % pp(e))
         try:
             _git_checkout(target_path, commit=commit, user_name=user_name)
         except Exception as e:
-            raise Exception('CRITICAL: git pull failed!\n%s\n' % pp(e))
+            raise Exception('CRITICAL: git pull failed!%s' % pp(e))
         devnull.close()
     else:
         # Git repo does not exist
@@ -514,7 +514,7 @@ def _odoo_backup(conf, backup_target=None):
     try:
         os.makedirs(backup_target)
     except Exception as e:
-        raise Exception('CRITICAL: Can not create backup dir %s\n%s\n' % (os.makedirs(backup_target), pp(e)))
+        raise Exception('CRITICAL: Can not create backup dir %s%s' % (os.makedirs(backup_target), pp(e)))
 
     # Backup filestore from data_dir for instance database
     source_filestore = pj(conf['data_dir'], 'filestore/'+conf['db_name'])
@@ -529,7 +529,7 @@ def _odoo_backup(conf, backup_target=None):
                '--dbname='+conf['db_url'], '--file='+pj(backup_target, 'db.dump')]
         shell(cmd, timeout=300)
     except Exception as e:
-        raise Exception('CRITICAL: Backup of database failed!\n%s\n' % pp(e))
+        raise Exception('CRITICAL: Backup of database failed!%s' % pp(e))
 
     print 'BACKUP done!\n'
     return backup_target
@@ -565,7 +565,7 @@ def _odoo_restore(backup_dir, conf, data_dir_target='', database_target_url=''):
             shutil.rmtree(data_dir_target)
         shutil.copytree(data_dir_source, data_dir_target)
     except Exception as e:
-        raise Exception('CRITICAL: Restore of data_dir failed!\n%s\n' % pp(e))
+        raise Exception('CRITICAL: Restore of data_dir failed!%s' % pp(e))
 
     # Restore database
     print 'Restore of database at %s to %s' % (backup_dir, database_target_url)
@@ -576,12 +576,12 @@ def _odoo_restore(backup_dir, conf, data_dir_target='', database_target_url=''):
         with open(os.devnull, 'w') as devnull:
             shell(dropdb, timeout=120, stderr=devnull)
     except Exception as e:
-        raise Exception('CRITICAL: Drop database failed!\n%s\n' % pp(e))
+        raise Exception('CRITICAL: Drop database failed!%s' % pp(e))
     try:
         # Restore the database (HINT: Don't use --clean!)
         shell(database_restore_cmd, timeout=600)
     except (Exception, subprocess32.TimeoutExpired) as e:
-        raise Exception('CRITICAL: Restore database failed!\n%s\n' % pp(e))
+        raise Exception('CRITICAL: Restore database failed!%s' % pp(e))
 
     print 'RESTORE done!\n'
     return True
@@ -696,7 +696,7 @@ def _finish_update(conf, success=str(), error=str(), restore_failed='False'):
         with open(conf['status_file'], 'w+') as writefile:
             status_ini.write(writefile)
     except Exception as e:
-        print 'ERROR: Could not update %s\n%s\n' % (conf['status_file'], pp(e))
+        print 'ERROR: Could not update %s%s' % (conf['status_file'], pp(e))
 
     # Write log file
     try:
@@ -704,13 +704,13 @@ def _finish_update(conf, success=str(), error=str(), restore_failed='False'):
             logfile.write(success)
             logfile.write(error)
     except Exception as e:
-        print 'ERROR: Could not write %s\n%s\n' % (conf['update_log_file'], pp(e))
+        print 'ERROR: Could not write %s%s' % (conf['update_log_file'], pp(e))
 
     # Remove update.lock file
     try:
         os.remove(conf['update_lock_file'])
     except Exception as e:
-        print 'ERROR: Could not remove update lock file! %s\n%s\n' % (conf['update_lock_file'], pp(e))
+        print 'ERROR: Could not remove update lock file! %s%s' % (conf['update_lock_file'], pp(e))
 
     if success:
         print "---- Update done! Log:\n\n%s " % success
@@ -729,7 +729,7 @@ def _compare_urls(url1, url2, wanted_simmilarity=1.0):
         if wanted_simmilarity >= difflib.SequenceMatcher(None, url1_content, url2_content).ratio():
             return True
     except Exception as e:
-        print "ERROR: Could not compare websites:\n%s\n" % pp(e)
+        print "ERROR: Could not compare websites:%s" % pp(e)
     return False
 
 
@@ -748,7 +748,7 @@ def _odoo_update(conf):
             addons_to_update_csv = ",".join([str(item) for item in addons_to_update])
             conf['addons_to_update_csv'] += ',' + addons_to_update_csv
     except Exception as e:
-        return _finish_update(conf, error='CRITICAL: Search for addons to update failed!\n'+pp(e))
+        return _finish_update(conf, error='CRITICAL: Search for addons to update failed!'+pp(e))
 
     # 2.) No addons to install or update found and cores are the same
     if not conf['addons_to_install_csv'] and not conf['addons_to_update_csv'] and conf['core'] == conf['latest_core']:
@@ -757,7 +757,7 @@ def _odoo_update(conf):
             _git_checkout(conf['instance_dir'], commit=conf['latest_commit'], user_name=conf['instance'])
             return _finish_update(conf, success='Pulled instance repo '+conf['latest_commit']+' without restart!')
         except Exception as e:
-            return _finish_update(conf, error='CRITICAL: Checkout '+conf['latest_commit']+' failed!\n'+pp(e))
+            return _finish_update(conf, error='CRITICAL: Checkout '+conf['latest_commit']+' failed!'+pp(e))
 
     # 3.) Update is required
     print '\nUpdate is required!'
@@ -767,7 +767,7 @@ def _odoo_update(conf):
         print 'Backup before update: %s' % conf['backup']
         backup = _odoo_backup(conf, backup_target=conf['backup'])
     except Exception as e:
-        _finish_update(conf, error='CRITICAL: Backup before update failed. Skipping update.\n'+pp(e))
+        _finish_update(conf, error='CRITICAL: Backup before update failed. Skipping update.'+pp(e))
         return False
 
     # 3.1) Dry-Run the update
