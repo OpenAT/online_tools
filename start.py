@@ -596,6 +596,7 @@ def _odoo_restore(backup_dir, conf, data_dir_target='', database_target_url=''):
                          FROM pg_stat_activity \
                          WHERE pg_stat_activity.datname = %s \
                          AND pid <> pg_backend_pid() ;" % datname
+        sql_drop_conn = '"%s"' % sql_drop_conn
         cmd_drop_conn = ['psql', '-q', '-c', sql_drop_conn, '-d', database_target_url]
         # Drop DB
         sql_drop_db = "DROP DATABASE %s ;" % datname
