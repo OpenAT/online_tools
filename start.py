@@ -630,7 +630,7 @@ def _odoo_restore(backup_dir, conf, data_dir_target='', database_target_url=''):
 
 
 def _changed_files(gitrepo_path, current, target='Latest'):
-    print "Searching for changed files."
+    print "Searching for changed files in %s" % gitrepo_path
     if current == target:
         print "WARNING: Current and target commit are the same!"
         return []
@@ -704,7 +704,7 @@ def _addons_to_update(conf):
         print 'No Updates for the odoo core found!'
 
     # instance-addons
-    changed_files = _changed_files(conf['latest_addons_instance_dir'],
+    changed_files = _changed_files(conf['latest_inst_dir'],
                                    conf['commit'],
                                    conf['latest_commit'])
     instance_updates, instance_langupdates = _find_addons_byfile(changed_files, stop=[conf['latest_inst_dir'], ])
@@ -900,7 +900,7 @@ def _odoo_update(conf):
             if _service_control(conf['instance'], running=True):
                 _finish_update(conf, success='Final update successful and instance UP!\n\n'+update_log)
             else:
-                _finish_update(conf, error='CRITICAL: Final update successful but instance DOWN!\n\n'+update_log)
+                _finish_update(conf, success='WARNING: Final update successful but instance DOWN!\n\n'+update_log)
 
         except Exception as e:
             print "\nCRITICAL: Final update on production instance failed! %s" % pp(e)
