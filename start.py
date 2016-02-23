@@ -58,8 +58,11 @@ def shell(*args, **kwargs):
             kwargs.update({
                 'preexec_fn': _change_user(user.pw_uid, user.pw_gid),
                 'env': env,
+                'shell': True,
             })
             kwargs.pop('user_name')
+            print "Shell user name: %s pid: %s gid: %s" % (user, user.pw_uid, user.pw_gid)
+            print "ENV: %s" % env
         except Exception as e:
             print "WARNING: User %s not found on this machine! " \
                   "Will run as %s.\n%s\n" % (kwargs.get('user_name'), pwd.getpwuid(os.getuid())[0], pp(e))
@@ -142,8 +145,7 @@ def _git_latest(target_path, repo, commit='o8', user_name=None):
         devnull.close()
     else:
         # Git repo does not exist
-        _git_clone(repo, branch=commit, cwd=os.path.dirname(target_path), target=os.path.basename(target_path),
-                   user_name=user_name)
+        _git_clone(repo, branch=commit, cwd=os.path.dirname(target_path), user_name=user_name)
     print "Get latest git repository done."
     return True
 
