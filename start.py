@@ -420,11 +420,14 @@ def _odoo_update_config(cnf):
         instance_latest = dict(instance_latest.items('options'))
         cnf['latest_core'] = instance_latest.get('core')
         cnf['latest_core_dir'] = pj(cnf['root_dir'], 'online_' + cnf['latest_core'])
-        # Forced addons to install or update for the instance
-        cnf['latest_install_addons'] = [] if instance_latest.get('install_addons', 'False') == 'False' \
-            else instance_latest.get('install_addons').split(',')
-        cnf['latest_update_addons'] = [] if instance_latest.get('update_addons', 'False') == 'False' \
-            else instance_latest.get('update_addons').split(',')
+
+        # Forced addons to install or update for the INSTANCE
+        # TODO try except
+        cnf['latest_install_addons'] = filter(None, instance_latest.get('install_addons', '').split(','))
+        cnf['latest_update_addons'] = filter(None, instance_latest.get('update_addons', '').split(','))
+        if cnf['commit'] == cnf['latest_commit']:
+            cnf['latest_install_addons'] = []
+            cnf['latest_update_addons'] = []
 
         # Get cores before we load core.ini
         try:
@@ -433,18 +436,22 @@ def _odoo_update_config(cnf):
             _finish_update(cnf, error="CRITICAL: Could not get cores!"+pp(e))
 
         # latest core.ini (core.ini is optional!)
+        # Todo: Try except
         core_update = dict()
         if os.path.exists(pj(cnf['latest_core_dir'], 'core.ini')):
             core_update = ConfigParser.SafeConfigParser()
             core_update.read(pj(cnf['latest_core_dir'], 'core.ini'))
             core_update = dict(core_update.items('options'))
-        # Forced addons to install or update for the core
-        cnf['latest_core_install_addons'] = [] if core_update.get('install_addons', 'False') == 'False' \
-            else core_update.get('install_addons').split(',')
-        cnf['latest_core_update_addons'] = [] if core_update.get('update_addons', 'False') == 'False' \
-            else core_update.get('update_addons').split(',')
 
-        # Forced addons to install or update for core and instance
+        # Forced addons to install or update for the CORE
+        # Todo: Try except
+        cnf['latest_core_install_addons'] = filter(None, core_update.get('install_addons', '').split(','))
+        cnf['latest_core_update_addons'] = filter(None, core_update.get('update_addons', '').split(','))
+        if cnf['core'] == cnf['latest_core']:
+            cnf['latest_core_install_addons'] = []
+            cnf['latest_core_update_addons'] = []
+
+        # All forced addons to update and install
         cnf['addons_to_install_csv'] = ",".join([str(item) for item in
                                                  cnf['latest_core_install_addons'] + cnf['latest_install_addons']])
         cnf['addons_to_update_csv'] = ",".join([str(item) for item in
@@ -497,6 +504,7 @@ def _odoo_update_config(cnf):
 
 def _get_cores(conf):
     print "\n---- GET CORES (should be run as a root user)"
+    paths = [conf['core_dir'], ]
 
     # get current core
     if os.path.exists(conf['core_dir']) and not conf['production_server']:
@@ -505,7 +513,7 @@ def _get_cores(conf):
         _git_latest(conf['core_dir'], conf['core_repo'], commit=conf['core'])
 
     # get or create latest core
-    if conf.get('latest_core_dir') != conf['core_dir'] and conf.get('latest_core_dir'):
+    if conf.get('latest_core_dir') != conf['core_dir'] and conf.get('latest_core_dir', False):
         # get latest core
         if os.path.exists(conf['latest_core_dir']) and not conf['production_server']:
             print 'WARNING: Development server found! Skipping %s clone or checkout' % conf['latest_core_dir']
@@ -514,9 +522,9 @@ def _get_cores(conf):
             if not os.path.exists(conf['latest_core_dir']):
                 shutil.copytree(conf['core_dir'], conf['latest_core_dir'])
             _git_latest(conf['latest_core_dir'], conf['core_repo'], commit=conf['latest_core'])
+        paths += conf['latest_core_dir']
 
-    # Set correct rights (runs twice if core_dir = latest_core_dir)
-    paths = [conf['core_dir'], conf.get('latest_core_dir')] if conf.get('latest_core_dir') else [conf['core_dir'], ]
+    # Set correct rights
     for path in paths:
         devnull = open(os.devnull, 'w')
         try:
