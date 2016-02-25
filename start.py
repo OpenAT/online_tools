@@ -212,6 +212,9 @@ def _odoo_config(instance_path):
     cnf['instance'] = os.path.basename(instance_path)
     cnf['start_time'] = str(time.strftime('%Y-%m-%d_%H-%M-%S'))
 
+    # Log to sysout
+    sys.stdout = open('/var/log/online/'+cnf['instance']+'--update.log', 'a+')
+
     # server.conf (or -c)
     print "\nReading config file."
     configfile = False
@@ -787,10 +790,10 @@ def _finish_update(conf, success=str(), error=str(), restore_failed='False'):
         # TODO: remove old temp backups (if more than 3)
         # get dirs and sort by date
         # remove all but the last three
-        print "---- Update done! Log:\n\n%s " % success
+        print "---- Update done! ----"
         exit(0)
     if error:
-        print "---- ERROR: Update failed! Log:\n\n%s" % error
+        print "---- ERROR: Update failed! ----"
         exit(1)
 
 
