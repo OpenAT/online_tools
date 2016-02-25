@@ -213,7 +213,7 @@ def _odoo_config(instance_path):
     cnf['start_time'] = str(time.strftime('%Y-%m-%d_%H-%M-%S'))
 
     # Log to sysout
-    sys.stdout = open('/var/log/online/'+cnf['instance']+'--update.log', 'a+')
+    sys.stdout = open('/var/log/online/'+cnf['instance']+'/'+cnf['instance']+'--full.log', 'a+')
 
     # server.conf (or -c)
     print "\nReading config file."
