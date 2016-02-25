@@ -423,11 +423,13 @@ def _odoo_update_config(cnf):
 
         # Forced addons to install or update for the INSTANCE
         # TODO try except
-        cnf['latest_install_addons'] = filter(None, instance_latest.get('install_addons', '').split(','))
-        cnf['latest_update_addons'] = filter(None, instance_latest.get('update_addons', '').split(','))
-        if cnf['commit'] == cnf['latest_commit']:
-            cnf['latest_install_addons'] = []
-            cnf['latest_update_addons'] = []
+        cnf['latest_install_addons'] = []
+        cnf['latest_update_addons'] = []
+        if cnf['commit'] != cnf['latest_commit']:
+            if instance_latest.get('install_addons') != 'False':
+                cnf['latest_install_addons'] = filter(None, instance_latest.get('install_addons', '').split(','))
+            if instance_latest.get('update_addons') != 'False':
+                cnf['latest_update_addons'] = filter(None, instance_latest.get('update_addons', '').split(','))
 
         # Get cores before we load core.ini
         try:
@@ -445,11 +447,13 @@ def _odoo_update_config(cnf):
 
         # Forced addons to install or update for the CORE
         # Todo: Try except
-        cnf['latest_core_install_addons'] = filter(None, core_update.get('install_addons', '').split(','))
-        cnf['latest_core_update_addons'] = filter(None, core_update.get('update_addons', '').split(','))
-        if cnf['core'] == cnf['latest_core']:
-            cnf['latest_core_install_addons'] = []
-            cnf['latest_core_update_addons'] = []
+        cnf['latest_core_install_addons'] = []
+        cnf['latest_core_update_addons'] = []
+        if cnf['core'] != cnf['latest_core']:
+            if core_update.get('install_addons') != 'False':
+                cnf['latest_core_install_addons'] = filter(None, core_update.get('install_addons', '').split(','))
+            if core_update.get('update_addons') != 'False':
+                cnf['latest_core_update_addons'] = filter(None, core_update.get('update_addons', '').split(','))
 
         # All forced addons to update and install
         cnf['addons_to_install_csv'] = ",".join([str(item) for item in
@@ -619,12 +623,17 @@ def _odoo_restore(backup_dir, conf, data_dir_target='', database_target_url=''):
                          TEMPLATE template0 \
                          ENCODING 'UTF8' \
                          LC_COLLATE 'de_DE.UTF8' \
-                         LC_CTYPE 'de_DE.UTF8' ;" % (database_name, conf['instance'])
+                         LC_CTYPE 'de_DE.UTF8' ;" % (database_name, conf['db_user'])
         cmd_create_db = ['psql', '-q', '-c', sql_create_db, '-d', postgres_db_url]
-        with open(os.devnull, 'w') as devnull:
-            shell(cmd_drop_conn, timeout=240,)
-            shell(cmd_drop_db, timeout=240,)
-            shell(cmd_create_db, timeout=240,)
+        try:
+            shell(cmd_drop_conn, timeout=240)
+        except:
+            print "WARNING: could not drop connections to database %s" % database_name
+        try:
+            shell(cmd_drop_db, timeout=240)
+        except:
+            print "WARNING: could not drop database %s" % database_name
+        shell(cmd_create_db, timeout=240)
     except Exception as e:
         raise Exception('CRITICAL: Drop (and create) database failed!%s' % pp(e))
     try:
@@ -775,6 +784,9 @@ def _finish_update(conf, success=str(), error=str(), restore_failed='False'):
         print 'ERROR: Could not remove update lock file! %s%s' % (conf['update_lock_file'], pp(e))
 
     if success:
+        # TODO: remove old temp backups (if more than 3)
+        # get dirs and sort by date
+        # remove all but the last three
         print "---- Update done! Log:\n\n%s " % success
         exit(0)
     if error:
