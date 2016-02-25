@@ -456,10 +456,10 @@ def _odoo_update_config(cnf):
                 cnf['latest_core_update_addons'] = filter(None, core_update.get('update_addons', '').split(','))
 
         # All forced addons to update and install
-        cnf['addons_to_install_csv'] = ",".join([str(item) for item in
-                                                 cnf['latest_core_install_addons'] + cnf['latest_install_addons']])
-        cnf['addons_to_update_csv'] = ",".join([str(item) for item in
-                                                cnf['latest_core_update_addons'] + cnf['latest_update_addons']])
+        cnf['addons_to_install'] = cnf['latest_core_install_addons'] + cnf['latest_install_addons']
+        cnf['addons_to_install_csv'] = ",".join([str(item) for item in cnf['addons_to_install']])
+        cnf['addons_to_update'] = cnf['latest_core_update_addons'] + cnf['latest_update_addons']
+        cnf['addons_to_update_csv'] = ",".join([str(item) for item in cnf['addons_to_update']])
 
         # Startup Args
         cnf['latest_startup_args'] = ['-d', cnf['latest_db_name'],
@@ -821,8 +821,7 @@ def _odoo_update(conf):
         print 'Search for addons to update.'
         addons_to_update = _addons_to_update(conf)[0]
         if addons_to_update:
-            addons_to_update_csv = ",".join([str(item) for item in addons_to_update])
-            conf['addons_to_update_csv'] += ',' + addons_to_update_csv
+            conf['addons_to_update_csv'] = ",".join([str(item) for item in conf['addons_to_update'] + addons_to_update])
     except Exception as e:
         return _finish_update(conf, error='CRITICAL: Search for addons to update failed!'+pp(e))
 
