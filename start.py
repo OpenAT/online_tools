@@ -222,7 +222,6 @@ def _odoo_config(instance_path):
         sys.stdout = open(cnf['update_log_file'], 'a+')
         sys.stderr = open(cnf['update_log_file'], 'a+')
 
-
     # server.conf (or -c)
     print "\nReading config file."
     configfile = False
@@ -509,7 +508,7 @@ def _odoo_update_config(cnf):
 def _get_cores(conf):
     print "\n---- GET CORES (should be run as a root user)"
     paths = list()
-    paths += conf['core_dir']
+    paths.append(conf['core_dir'])
 
     # get current core
     if os.path.exists(conf['core_dir']) and not conf['production_server']:
@@ -527,18 +526,19 @@ def _get_cores(conf):
             if not os.path.exists(conf['latest_core_dir']):
                 shutil.copytree(conf['core_dir'], conf['latest_core_dir'])
             _git_latest(conf['latest_core_dir'], conf['core_repo'], commit=conf['latest_core'])
-        paths += conf['latest_core_dir']
+        paths.append(conf['latest_core_dir'])
 
     # Set correct rights
     if conf['production_server']:
         for path in paths:
-            try:
-                print "Set correct user and rights for core %s" % path
-                shell(['chown', '-R', 'root:root', path], timeout=60)
-                shell(['chmod', '-R', 'o+rX-w', path], timeout=60)
-                devnull.close()
-            except (Exception, subprocess32.TimeoutExpired) as e:
-                print 'ERROR: Set user and rights failed! Retcode %s !' % pp(e)
+            path = str(path)
+            if conf['root_dir'] in path:
+                try:
+                    print "Set correct user and rights for core %s" % path
+                    shell(['chown', '-R', 'root:root', path], timeout=60)
+                    shell(['chmod', '-R', 'o+rX-w', path], timeout=60)
+                except (Exception, subprocess32.TimeoutExpired) as e:
+                    print 'ERROR: Set user and rights failed! Retcode %s !' % pp(e)
     print "---- GET CORES done\n"
     return True
 
@@ -870,12 +870,11 @@ def _odoo_update(conf):
         odoo_cwd = pj(conf['latest_core_dir'], 'odoo')
 
         # Update the dry-run instance
-        print 'Updating the dry-run database. (Please be patient)'
-        update_log = '\n%s%s' % ('Addons to update: ', conf['addons_to_update_csv'])
-        update_log = '%s%s\n%s\n' % ('Addons to install: ', conf['addons_to_install_csv'], update_log)
-        update_log += '\nUpdating the dry-run database. (Please be patient)\n'
-        update_log += shell(odoo_server + conf['latest_startup_args'] + args, cwd=odoo_cwd, timeout=600,
-                            user_name=conf['instance'])
+        print '\n-- Updating the dry-run database. (Please be patient)'
+        print '%s%s' % ('Addons to update: ', conf['addons_to_update_csv'])
+        print '%s%s' % ('Addons to install: ', conf['addons_to_install_csv'])
+        shell(odoo_server + conf['latest_startup_args'] + args, cwd=odoo_cwd, timeout=600,
+              user_name=conf['instance'])
     except Exception as e:
         return _finish_update(conf, error='CRITICAL: Update dry-run failed!'+pp(e))
 
@@ -903,21 +902,19 @@ def _odoo_update(conf):
 
             # Get correct instance commit
             print '\nCheckout the correct commit ID for instance repo %s' % conf['latest_commit']
-            update_log += 'Checkout the correct commit ID for instance repo %s' % conf['latest_commit']
             _git_checkout(conf['instance_dir'], conf['latest_commit'], user_name=conf['instance'])
 
             # Update productive instance
             print '\nUpdating the production database. (Please be patient)'
-            update_log += 'Updating the production database. (Please be patient)'
-            update_log += shell(odoo_server + conf['startup_args'] + args, cwd=odoo_cwd, timeout=600,
-                                user_name=conf['instance'])
+            shell(odoo_server + conf['startup_args'] + args, cwd=odoo_cwd, timeout=600,
+                  user_name=conf['instance'])
 
             # Update successful
             print "\nUpdate successful!\nStart service %s" % conf['instance']
             if _service_control(conf['instance'], running=True):
-                _finish_update(conf, success='Final update successful and instance UP!\n\n'+update_log)
+                _finish_update(conf, success='Final update successful and instance UP!\n')
             else:
-                _finish_update(conf, success='WARNING: Final update successful but instance DOWN!\n\n'+update_log)
+                _finish_update(conf, success='WARNING: Final update successful but instance DOWN!\n')
 
         except Exception as e:
             print "\nCRITICAL: Final update on production instance failed! %s" % pp(e)
@@ -939,13 +936,13 @@ def _odoo_update(conf):
             # Restore successful after failed update
             print "\nStart service %s" % conf['instance']
             if _service_control(conf['instance'], running=True):
-                _finish_update(conf, success='ERROR: UPDATE failed! Restore successful! Instance UP!\n\n'+update_log)
+                _finish_update(conf, success='ERROR: UPDATE failed! Restore successful! Instance UP!\n')
             else:
-                _finish_update(conf, error='CRITICAL: UPDATE failed! Restore successful! Instance DOWN!\n\n'+update_log)
+                _finish_update(conf, error='CRITICAL: UPDATE failed! Restore successful! Instance DOWN!\n')
 
     else:
         print "WARNING: Development server found! Run the final update skipped!"
-        _finish_update(conf, success='Development server found! Only Dry-Run update done!\n\n'+update_log)
+        _finish_update(conf, success='Development server found! Only Dry-Run update done!\n')
 
 
 # ----- START MAIN ROUTINE -----
