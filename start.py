@@ -764,18 +764,6 @@ def _finish_update(conf, success=str(), error=str(), restore_failed='False'):
     except Exception as e:
         print 'ERROR: Could not update %s%s' % (conf['status_file'], pp(e))
 
-    # Write log file (DEPRICATED replaced by permanent logging started in _odoo_config())
-    # try:
-    #     with open(conf['update_log_file'], 'a+') as logfile:
-    #         logfile.write('---------- Update '+conf['start_time']+' ----------\n')
-    #         logfile.write(success+'\n')
-    #         logfile.write(error+'\n\n')
-    #     if conf['production_server']:
-    #         shell(['chmod', 'o=', conf['update_log_file']])
-    #         shell(['chown', conf['instance']+':'+conf['instance'], conf['update_log_file']])
-    # except Exception as e:
-    #     print 'ERROR: Could not write %s%s' % (conf['update_log_file'], pp(e))
-
     # Remove update.lock file
     try:
         if os.path.isfile(conf['update_lock_file']):
@@ -783,14 +771,25 @@ def _finish_update(conf, success=str(), error=str(), restore_failed='False'):
     except Exception as e:
         print 'ERROR: Could not remove update lock file! %s%s' % (conf['update_lock_file'], pp(e))
 
+    # TODO: remove old temp backups (if more than 3)
+        # get dirs and sort by date
+        # remove all but the last three
+
+    # Print final message
     if success:
-        # TODO: remove old temp backups (if more than 3)
-            # get dirs and sort by date
-            # remove all but the last three
         print "%s\n---- Update done! ----" % success
-        exit(0)
     if error:
         print "%s---- ERROR: Update failed! ----" % error
+
+    # Close conf['update_log_file']
+    if conf['production_server']:
+        sys.stderr.close()
+        sys.stdout.close()
+
+    # Exit --update process
+    if success:
+        exit(0)
+    if error:
         exit(1)
 
 
