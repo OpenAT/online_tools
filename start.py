@@ -211,9 +211,17 @@ def _odoo_config(instance_path):
     cnf = dict()
     cnf['instance'] = os.path.basename(instance_path)
     cnf['start_time'] = str(time.strftime('%Y-%m-%d_%H-%M-%S'))
+    # Production Server?
+    cnf['production_server'] = False
+    if _service_exists(cnf['instance']):
+        cnf['production_server'] = True
 
     # Log to sysout
-    sys.stdout = open('/var/log/online/'+cnf['instance']+'/'+cnf['instance']+'--full.log', 'a+')
+    if cnf['production_server']:
+        cnf['update_log_file'] = '/var/log/online/'+cnf['instance']+'/'+cnf['instance']+'--update.log'
+        sys.stdout = open(cnf['update_log_file'], 'a+')
+        sys.stderr = open(cnf['update_log_file'], 'a+')
+
 
     # server.conf (or -c)
     print "\nReading config file."
@@ -262,11 +270,6 @@ def _odoo_config(instance_path):
     core = dict(core.items('options'))
     cnf['core'] = core.get('core')
 
-    # Production Server?
-    cnf['production_server'] = False
-    if _service_exists(cnf['instance']):
-        cnf['production_server'] = True
-
     # ----- REGULAR START -----
     cnf['root_dir'] = '/opt/online'
     if not os.path.exists(cnf['root_dir']):
@@ -277,10 +280,8 @@ def _odoo_config(instance_path):
     cnf['instance_dir'] = instance_path
     cnf['data_dir'] = cnf.get('data_dir', pj(cnf['instance_dir'], 'data_dir'))
     cnf['backup_dir'] = pj(cnf['instance_dir'], 'update')
-    cnf['log_dir'] = pj(cnf['instance_dir'], 'log')
     if _service_exists(cnf['instance']) and '_update' not in cnf.get('db_name', cnf['instance']):
         assert os.path.exists(cnf['backup_dir']), "CRITICAL: Backup directory is missing! %s" % cnf['backup_dir']
-        assert os.path.exists(cnf['log_dir']), "CRITICAL: Log directory is missing! %s" % cnf['log_dir']
 
     # Repository URLs
     cnf['instance_repo'] = 'git@github.com:OpenAT/' + cnf['instance'] + '.git'
@@ -355,10 +356,6 @@ def _odoo_update_config(cnf):
 
         # Backup (folder for his run of the script)
         cnf['backup'] = pj(cnf['backup_dir'], cnf['db_name']+'-pre-update_backup-'+cnf['start_time'])
-
-        # Logging
-        #cnf['update_log_file'] = pj(cnf['log_dir'], cnf['instance'] + '-update-' + cnf['start_time'] + '.log')
-        cnf['update_log_file'] = pj(cnf['log_dir'], cnf['instance']+'-update'+'.log')
 
         # Check if an update is already running
         cnf['update_lock_file'] = pj(cnf['instance_dir'], 'update.lock')
@@ -790,10 +787,10 @@ def _finish_update(conf, success=str(), error=str(), restore_failed='False'):
         # TODO: remove old temp backups (if more than 3)
             # get dirs and sort by date
             # remove all but the last three
-        print "---- Update done! ----"
+        print "%s\n---- Update done! ----" % success
         exit(0)
     if error:
-        print "---- ERROR: Update failed! ----"
+        print "%s---- ERROR: Update failed! ----" % error
         exit(1)
 
 
