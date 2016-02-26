@@ -17,3 +17,12 @@ Tools for FS-Online
 6. Update Webhook einrichten
    - salt master datei
    - github webhook
+
+# Installation neuer minions
+
+1. minion aufsetzten
+2. saltstack installieren
+3. minion id anpassen 
+4. minion_roles korrekt setzen
+5. key im saltstack-master akzeptieren
+6. openat user löschen (oder wir machen das gleich in ubuntu1404.sls)
