@@ -268,6 +268,8 @@ def _odoo_config(instance_path):
     # Log to File!
     if cnf['production_server']:
         cnf['update_log_file'] = '/var/log/online/'+cnf['instance']+'/'+cnf['instance']+'--update.log'
+        if os.path.isfile(cnf['update_log_file']):
+            shell(['chown', cnf['instance']+':'+cnf['instance'], cnf['update_log_file']])
         sys.stdout = open(cnf['update_log_file'], 'a+')
         sys.stderr = open(cnf['update_log_file'], 'a+')
 
