@@ -511,7 +511,8 @@ def _odoo_update_config(cnf):
 
 def _get_cores(conf):
     print "\n---- GET CORES (should be run as a root user)"
-    paths = [conf['core_dir'], ]
+    paths = list()
+    paths += conf['core_dir']
 
     # get current core
     if os.path.exists(conf['core_dir']) and not conf['production_server']:
@@ -532,16 +533,15 @@ def _get_cores(conf):
         paths += conf['latest_core_dir']
 
     # Set correct rights
-    for path in paths:
-        devnull = open(os.devnull, 'w')
-        try:
-            print "Set correct user and rights for core %s" % path
-            shell(['chown', '-R', 'root:root', path], timeout=60, stderr=devnull)
-            shell(['chmod', '-R', 'o+rX-w', path], timeout=60, stderr=devnull)
-            devnull.close()
-        except (Exception, subprocess32.TimeoutExpired) as e:
-            devnull.close()
-            print 'ERROR: Set user and rights failed! Retcode %s !' % pp(e)
+    if conf['production_server']:
+        for path in paths:
+            try:
+                print "Set correct user and rights for core %s" % path
+                shell(['chown', '-R', 'root:root', path], timeout=60)
+                shell(['chmod', '-R', 'o+rX-w', path], timeout=60)
+                devnull.close()
+            except (Exception, subprocess32.TimeoutExpired) as e:
+                print 'ERROR: Set user and rights failed! Retcode %s !' % pp(e)
     print "---- GET CORES done\n"
     return True
 
@@ -767,17 +767,17 @@ def _finish_update(conf, success=str(), error=str(), restore_failed='False'):
     except Exception as e:
         print 'ERROR: Could not update %s%s' % (conf['status_file'], pp(e))
 
-    # Write log file
-    try:
-        with open(conf['update_log_file'], 'a+') as logfile:
-            logfile.write('---------- Update '+conf['start_time']+' ----------\n')
-            logfile.write(success+'\n')
-            logfile.write(error+'\n\n')
-        if conf['production_server']:
-            shell(['chmod', 'o=', conf['update_log_file']])
-            shell(['chown', conf['instance']+':'+conf['instance'], conf['update_log_file']])
-    except Exception as e:
-        print 'ERROR: Could not write %s%s' % (conf['update_log_file'], pp(e))
+    # Write log file (DEPRICATED replaced by permanent logging started in _odoo_config())
+    # try:
+    #     with open(conf['update_log_file'], 'a+') as logfile:
+    #         logfile.write('---------- Update '+conf['start_time']+' ----------\n')
+    #         logfile.write(success+'\n')
+    #         logfile.write(error+'\n\n')
+    #     if conf['production_server']:
+    #         shell(['chmod', 'o=', conf['update_log_file']])
+    #         shell(['chown', conf['instance']+':'+conf['instance'], conf['update_log_file']])
+    # except Exception as e:
+    #     print 'ERROR: Could not write %s%s' % (conf['update_log_file'], pp(e))
 
     # Remove update.lock file
     try:
@@ -788,8 +788,8 @@ def _finish_update(conf, success=str(), error=str(), restore_failed='False'):
 
     if success:
         # TODO: remove old temp backups (if more than 3)
-        # get dirs and sort by date
-        # remove all but the last three
+            # get dirs and sort by date
+            # remove all but the last three
         print "---- Update done! ----"
         exit(0)
     if error:
