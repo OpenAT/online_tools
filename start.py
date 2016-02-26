@@ -16,6 +16,50 @@ import pwd
 from time import sleep
 import urllib2
 import difflib
+from functools import wraps
+
+
+def retry(ExceptionToCheck, tries=4, delay=3, backoff=2, logger=None):
+    """Retry calling the decorated function using an exponential backoff.
+
+    http://www.saltycrane.com/blog/2009/11/trying-out-retry-decorator-python/
+    original from: http://wiki.python.org/moin/PythonDecoratorLibrary#Retry
+
+    :param ExceptionToCheck: the exception to check. may be a tuple of
+        exceptions to check
+    :type ExceptionToCheck: Exception or tuple
+    :param tries: number of times to try (not retry) before giving up
+    :type tries: int
+    :param delay: initial delay between retries in seconds
+    :type delay: int
+    :param backoff: backoff multiplier e.g. value of 2 will double the delay
+        each retry
+    :type backoff: int
+    :param logger: logger to use. If None, print
+    :type logger: logging.Logger instance
+    """
+    def deco_retry(f):
+
+        @wraps(f)
+        def f_retry(*args, **kwargs):
+            mtries, mdelay = tries, delay
+            while mtries > 1:
+                try:
+                    return f(*args, **kwargs)
+                except ExceptionToCheck, e:
+                    msg = "%s, Retrying in %d seconds..." % (str(e), mdelay)
+                    if logger:
+                        logger.warning(msg)
+                    else:
+                        print msg
+                    time.sleep(mdelay)
+                    mtries -= 1
+                    mdelay *= backoff
+            return f(*args, **kwargs)
+
+        return f_retry  # true decorator
+
+    return deco_retry
 
 
 def pp(e):
@@ -74,6 +118,7 @@ def shell(*args, **kwargs):
     return subprocess32.check_output(*args, **kwargs)
 
 
+@retry(Exception, tries=3)
 def _git_get_hash(path):
     print "\nGit get commit id %s." % path
     assert os.path.exists(path), 'CRITICAL: Path not found: %s' % path
@@ -84,6 +129,7 @@ def _git_get_hash(path):
         raise Exception('CRITICAL: Get commit-hash failed!%s' % pp(e))
 
 
+@retry(Exception, tries=3)
 def _git_submodule(path, user_name=None):
     print "Git update submodule --init --recursive in %s." % path
     assert os.path.exists(path), 'CRITICAL: Path not found: %s' % path
@@ -95,6 +141,7 @@ def _git_submodule(path, user_name=None):
     return True
 
 
+@retry(Exception, tries=3)
 def _git_clone(repo, branch='o8', cwd='', target='', user_name=None):
     cwd = cwd or os.getcwd()
     target = target or repo.rsplit('/', 1)[-1].replace('.git', '', 1)
@@ -111,6 +158,7 @@ def _git_clone(repo, branch='o8', cwd='', target='', user_name=None):
     return True
 
 
+@retry(Exception, tries=3)
 def _git_checkout(path, commit='o8', user_name=None):
     print "Git checkout %s in %s." % (commit, path)
     assert os.path.exists(path), 'CRITICAL: Path not found: %s' % path
@@ -127,6 +175,7 @@ def _git_checkout(path, commit='o8', user_name=None):
     return True
 
 
+@retry(Exception, tries=2)
 def _git_latest(target_path, repo, commit='o8', user_name=None, pull=False):
     print "Get latest git repository %s -b %s in %s." % (repo, commit, target_path)
     # HINT: 'target_path' is the full path where the repo should be cloned to
@@ -137,7 +186,7 @@ def _git_latest(target_path, repo, commit='o8', user_name=None, pull=False):
             print "Git reset --hard %s" % target_path
             shell(['git', 'reset', '--hard'], cwd=target_path, timeout=120, stderr=devnull, user_name=user_name)
         except Exception as e:
-            raise Exception('CRITICAL: git reset --hard failed!%s' % pp(e))
+            print 'ERROR: git reset --hard failed!%s' % pp(e)
         try:
             _git_checkout(target_path, commit=commit, user_name=user_name)
         except Exception as e:
@@ -216,7 +265,7 @@ def _odoo_config(instance_path):
     if _service_exists(cnf['instance']):
         cnf['production_server'] = True
 
-    # Log to sysout
+    # Log to File!
     if cnf['production_server']:
         cnf['update_log_file'] = '/var/log/online/'+cnf['instance']+'/'+cnf['instance']+'--update.log'
         sys.stdout = open(cnf['update_log_file'], 'a+')
@@ -400,10 +449,7 @@ def _odoo_update_config(cnf):
         # HINT: Must be run as the instance user because of git ssh!
         print "\n---- Get latest %s repository for update check." % cnf['instance']
         if cnf['production_server']:
-            try:
-                _git_latest(cnf['latest_inst_dir'], cnf['instance_repo'], user_name=cnf['instance'], pull=True)
-            except Exception as e:
-                _finish_update(cnf, error="CRITICAL: Could not get latest repo from github for update check!"+pp(e))
+            _git_latest(cnf['latest_inst_dir'], cnf['instance_repo'], user_name=cnf['instance'], pull=True)
         else:
             print "WARNING: Development server found! Get latest repository for update check skipped!"
         print "---- Get latest %s repository done" % cnf['instance']
@@ -425,10 +471,13 @@ def _odoo_update_config(cnf):
         cnf['latest_install_addons'] = []
         cnf['latest_update_addons'] = []
         if cnf['commit'] != cnf['latest_commit']:
-            if instance_latest.get('install_addons') != 'False':
-                cnf['latest_install_addons'] = filter(None, instance_latest.get('install_addons', '').split(','))
-            if instance_latest.get('update_addons') != 'False':
-                cnf['latest_update_addons'] = filter(None, instance_latest.get('update_addons', '').split(','))
+            try:
+                if instance_latest.get('install_addons') != 'False':
+                    cnf['latest_install_addons'] = filter(None, instance_latest.get('install_addons', '').split(','))
+                if instance_latest.get('update_addons') != 'False':
+                    cnf['latest_update_addons'] = filter(None, instance_latest.get('update_addons', '').split(','))
+            except Exception as e:
+                _finish_update(cnf, error="CRITICAL: Could not set latest_[install/update]_addons!"+pp(e))
 
         # Get cores before we load core.ini
         try:
@@ -437,22 +486,26 @@ def _odoo_update_config(cnf):
             _finish_update(cnf, error="CRITICAL: Could not get cores!"+pp(e))
 
         # latest core.ini (core.ini is optional!)
-        # Todo: Try except
         core_update = dict()
         if os.path.exists(pj(cnf['latest_core_dir'], 'core.ini')):
-            core_update = ConfigParser.SafeConfigParser()
-            core_update.read(pj(cnf['latest_core_dir'], 'core.ini'))
-            core_update = dict(core_update.items('options'))
+            try:
+                core_update = ConfigParser.SafeConfigParser()
+                core_update.read(pj(cnf['latest_core_dir'], 'core.ini'))
+                core_update = dict(core_update.items('options'))
+            except Exception as e:
+                _finish_update(cnf, error="CRITICAL: Could not read core.ini!"+pp(e))
 
         # Forced addons to install or update for the CORE
-        # Todo: Try except
         cnf['latest_core_install_addons'] = []
         cnf['latest_core_update_addons'] = []
         if cnf['core'] != cnf['latest_core']:
-            if core_update.get('install_addons') != 'False':
-                cnf['latest_core_install_addons'] = filter(None, core_update.get('install_addons', '').split(','))
-            if core_update.get('update_addons') != 'False':
-                cnf['latest_core_update_addons'] = filter(None, core_update.get('update_addons', '').split(','))
+            try:
+                if core_update.get('install_addons') != 'False':
+                    cnf['latest_core_install_addons'] = filter(None, core_update.get('install_addons', '').split(','))
+                if core_update.get('update_addons') != 'False':
+                    cnf['latest_core_update_addons'] = filter(None, core_update.get('update_addons', '').split(','))
+            except Exception as e:
+                _finish_update(cnf, error="CRITICAL: Could not set latest_core_[install/update]_addons!"+pp(e))
 
         # All forced addons to update and install
         cnf['addons_to_install'] = cnf['latest_core_install_addons'] + cnf['latest_install_addons']
@@ -505,6 +558,7 @@ def _odoo_update_config(cnf):
     return cnf
 
 
+@retry(Exception, tries=4)
 def _get_cores(conf):
     print "\n---- GET CORES (should be run as a root user)"
     paths = list()
@@ -571,6 +625,7 @@ def _odoo_backup(conf, backup_target=None):
     return backup_target
 
 
+@retry(Exception, tries=3)
 def _odoo_restore(backup_dir, conf, data_dir_target='', database_target_url=''):
     # database
     database_source = pj(backup_dir, 'db.dump')
