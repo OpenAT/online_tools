@@ -678,9 +678,7 @@ def _odoo_restore(backup_dir, conf, data_dir_target='', database_target_url=''):
         sql_create_db = "CREATE DATABASE %s \
                          WITH OWNER %s \
                          TEMPLATE template0 \
-                         ENCODING 'UTF8' \
-                         LC_COLLATE 'de_DE.UTF8' \
-                         LC_CTYPE 'de_DE.UTF8' ;" % (database_name, conf['db_user'])
+                         ENCODING 'UTF8' ;" % (database_name, conf['db_user'])
         cmd_create_db = ['psql', '-q', '-c', sql_create_db, '-d', postgres_db_url]
         try:
             shell(cmd_drop_conn, timeout=240)
