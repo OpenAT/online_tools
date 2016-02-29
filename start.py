@@ -736,9 +736,9 @@ def _find_addons_byfile(changed_files, stop=[]):
             print "DEBUG: path %s filetype %s isfile %s %s" % (path, filetype, pj(path, '__openerp__.py'), os.path.isfile(pj(path, '__openerp__.py')))
             while path not in ['/', ] + stop:
                 if os.path.isfile(pj(path, '__openerp__.py')):
-                    if filetype in ('.py', '.xml'):
+                    if filetype in ('.py', '.xml', '.po'):
                         updates.append(os.path.basename(path))
-                    else:
+                    elif filetype in ('.po', '.pot'):
                         langupdates.append(os.path.basename(path))
                     break
                 path = os.path.dirname(path)  # cd ..
