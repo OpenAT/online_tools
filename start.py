@@ -270,8 +270,8 @@ def _odoo_config(instance_path):
         cnf['update_log_file'] = '/var/log/online/'+cnf['instance']+'/'+cnf['instance']+'--update.log'
         if os.path.isfile(cnf['update_log_file']):
             shell(['chown', cnf['instance']+':'+cnf['instance'], cnf['update_log_file']])
-        sys.stdout = open(cnf['update_log_file'], 'a+')
-        sys.stderr = open(cnf['update_log_file'], 'a+')
+        sys.stdout = open(cnf['update_log_file'], 'a+', buffering=1)
+        sys.stderr = open(cnf['update_log_file'], 'a+', buffering=1)
 
     # server.conf (or -c)
     print "\nReading config file."
@@ -383,8 +383,9 @@ def _odoo_config(instance_path):
 
     # Startup Args
     cnf['startup_args'] = ['--addons-path=' + cnf['addons_path_csv'], ]
+
+    # Development Start (config file not found)
     if not cnf['config_file']:
-        # Development Start (config file not found)
         cnf['startup_args'] += ['-d', cnf['db_name'],
                                 '-r', cnf['db_user'],
                                 '-w', cnf['db_password'],
@@ -734,7 +735,7 @@ def _find_addons_byfile(changed_files, stop=[]):
         filetype = os.path.splitext(f)[1]
         if filetype in ('.py', '.xml', '.po', '.pot'):
             path = os.path.dirname(f)
-            print "DEBUG: path %s filetype %s isfile %s %s" % (path, filetype, pj(path, '__openerp__.py'), os.path.isfile(pj(path, '__openerp__.py')))
+            #print "DEBUG: path %s filetype %s isfile %s %s" % (path, filetype, pj(path, '__openerp__.py'), os.path.isfile(pj(path, '__openerp__.py')))
             while path not in ['/', ] + stop:
                 if os.path.isfile(pj(path, '__openerp__.py')):
                     if filetype in ('.py', '.xml', '.po'):
@@ -900,6 +901,7 @@ def _odoo_update(conf):
         _finish_update(conf, error='CRITICAL: Backup before update failed. Skipping update.'+pp(e))
         return False
 
+    # TODO: Run language Updates
     # 3.1) Dry-Run the update
     print "-- Dry-Run the update."
     try:
@@ -914,39 +916,45 @@ def _odoo_update(conf):
         # Restore backup
         _odoo_restore(backup, conf, data_dir_target=conf['latest_data_dir'], database_target_url=conf['latest_db_url'])
 
-        # args to run the update
-        args = ['--stop-after-init', ]
-        if conf['addons_to_install_csv']:
-            args += ['-i', conf['addons_to_install_csv']]
-        if conf['addons_to_update_csv']:
-            args += ['-u', conf['addons_to_update_csv']]
 
         # Server Script and command working directory
         odoo_server = [pj(conf['latest_core_dir'], 'odoo/openerp-server'), ]
         odoo_cwd = pj(conf['latest_core_dir'], 'odoo')
 
-        # Update the dry-run instance
-        print '\n-- Updating the dry-run database. (Please be patient)'
-        print '%s%s' % ('Addons to update: ', conf['addons_to_update_csv'])
-        print '%s%s' % ('Addons to install: ', conf['addons_to_install_csv'])
-        shell(odoo_server + conf['latest_startup_args'] + args, cwd=odoo_cwd, timeout=600,
-              user_name=conf['instance'])
+        # Update addons in the dry-run instance
+        if conf['addons_to_update_csv']:
+            print '\n-- Updating the dry-run database. (Please be patient)'
+            print '%s%s' % ('Addons to update: ', conf['addons_to_update_csv'])
+            args = ['--stop-after-init', ]
+            args += ['-u', conf['addons_to_update_csv']]
+            shell(odoo_server + conf['latest_startup_args'] + args, cwd=odoo_cwd, timeout=600,
+                  user_name=conf['instance'])
+
+        # Install addons in the dry-run instance
+        if conf['addons_to_install_csv']:
+            print '\n-- Install addons in the dry-run database. (Please be patient)'
+            print '%s%s' % ('Addons to install: ', conf['addons_to_install_csv'])
+            args = ['--stop-after-init', ]
+            args += ['-i', conf['addons_to_install_csv']]
+            shell(odoo_server + conf['latest_startup_args'] + args, cwd=odoo_cwd, timeout=600,
+                  user_name=conf['instance'])
     except Exception as e:
         return _finish_update(conf, error='CRITICAL: Update dry-run failed!'+pp(e))
 
     # 3.1.1) Compare webpages (and permanently Start the Dry-Run Instance).
-    print "\n-- Start the Dry-Run instance service permanently and check webpages for any changes."
-    if conf['production_server']:
-        # Start latest instance
-        if _service_control(conf['latest_instance'], running=True):
-            url = 'http://'+conf['instance']+'.datadialgo.net'
-            latest_url = 'http://'+conf['latest_instance']+'.datadialgo.net'
-            if not _compare_urls(url, latest_url, wanted_simmilarity=0.8):
-                print "WARNING: Webpages seem to be different!"
-                # return _finish_update(conf, error='CRITICAL: Websites are different!\n')
-    else:
-        print "WARNING: Development server found! Compare Webpages skipped!"
+    # print "\n-- Start the Dry-Run instance service permanently and check webpages for any changes."
+    # if conf['production_server']:
+    #     # Start latest instance
+    #     if _service_control(conf['latest_instance'], running=True):
+    #         url = 'http://'+conf['instance']+'.datadialgo.net'
+    #         latest_url = 'http://'+conf['latest_instance']+'.datadialgo.net'
+    #         if not _compare_urls(url, latest_url, wanted_simmilarity=0.8):
+    #             print "WARNING: Webpages seem to be different!"
+    #             # return _finish_update(conf, error='CRITICAL: Websites are different!\n')
+    # else:
+    #     print "WARNING: Development server found! Compare Webpages skipped!"
 
+    # TODO: Run language Updates
     # 3.2) Update of production instance
     print "\n-- Run the final update on production instance. Service will be stopped!"
     if conf['production_server']:
@@ -960,10 +968,23 @@ def _odoo_update(conf):
             print '\nCheckout the correct commit ID for instance repo %s' % conf['latest_commit']
             _git_checkout(conf['instance_dir'], conf['latest_commit'], user_name=conf['instance'])
 
-            # Update productive instance
-            print '\nUpdating the production database. (Please be patient)'
-            shell(odoo_server + conf['startup_args'] + args, cwd=odoo_cwd, timeout=600,
-                  user_name=conf['instance'])
+            # Startup Args
+            args = ['-c', conf['config_file'], '--stop-after-init', ]
+            args += conf['startup_args']
+
+            # Update addons in productive instance
+            if conf['addons_to_update_csv']:
+                print '\n-- Updating the production database. (Please be patient)'
+                print '%s%s' % ('Addons to update: ', conf['addons_to_update_csv'])
+                shell(odoo_server + ['-u', conf['addons_to_update_csv']] + args, cwd=odoo_cwd, timeout=600,
+                      user_name=conf['instance'])
+
+            # Install addons in productive instance
+            if conf['addons_to_install_csv']:
+                print '\n-- Install addons in the production database. (Please be patient)'
+                print '%s%s' % ('Addons to install: ', conf['addons_to_install_csv'])
+                shell(odoo_server + ['-i', conf['addons_to_install_csv']] + args, cwd=odoo_cwd, timeout=600,
+                      user_name=conf['instance'])
 
             # Update successful
             print "\nUpdate successful!\nStart service %s" % conf['instance']
