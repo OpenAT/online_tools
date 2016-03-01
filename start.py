@@ -248,9 +248,9 @@ def _service_control(service_name, running, wait=10):
         return False
 
 
-def _find_root_dir(path, core_folder_name, stop='/'):
+def _find_root_dir(path, tools_folder_name='online_tools', stop='/'):
     while path not in ['/', stop, ]:
-        if core_folder_name in os.listdir(path):
+        if tools_folder_name in os.listdir(path):
             return path
         path = os.path.dirname(path)
     return False
@@ -321,9 +321,11 @@ def _odoo_config(instance_path):
     cnf['core'] = core.get('core')
 
     # ----- REGULAR START -----
-    cnf['root_dir'] = '/opt/online'
-    if not os.path.exists(cnf['root_dir']):
-        cnf['root_dir'] = _find_root_dir(instance_path, 'online_'+cnf['core'])
+    if cnf['production_server']:
+        cnf['root_dir'] = '/opt/online'
+    else:
+        cnf['root_dir'] = _find_root_dir(instance_path)
+    assert os.path.exists(cnf['root_dir']), 'CRITICAL: root_dir not found! %s ' % cnf['root_dir']
 
     # Directories
     cnf['core_dir'] = pj(cnf['root_dir'], 'online_'+cnf['core'])
@@ -439,7 +441,7 @@ def _odoo_update_config(cnf):
             '@' + cnf['db_host'] + ':' + cnf['db_port'] + '/' + cnf['latest_db_name']
 
         # Directories
-        cnf['latest_inst_dir'] = pj(cnf['instance_dir'], 'update/' + cnf['instance'])
+        cnf['latest_inst_dir'] = pj(cnf['instance_dir'], 'update/' + cnf['latest_db_name'])
         cnf['latest_data_dir'] = pj(cnf['latest_inst_dir'], 'data_dir')
 
         # Addons paths
@@ -450,7 +452,7 @@ def _odoo_update_config(cnf):
         # Get latest version of the instance repo
         # HINT: Must be run as the instance user because of git ssh!
         print "\n---- Get latest %s repository for update check." % cnf['instance']
-        if cnf['production_server']:
+        if cnf['production_server'] or not os.path.exists(cnf['latest_inst_dir']):
             _git_latest(cnf['latest_inst_dir'], cnf['instance_repo'], user_name=cnf['instance'], pull=True)
         else:
             print "WARNING: Development server found! Get latest repository for update check skipped!"
@@ -469,7 +471,6 @@ def _odoo_update_config(cnf):
         cnf['latest_core_dir'] = pj(cnf['root_dir'], 'online_' + cnf['latest_core'])
 
         # Forced addons to install or update for the INSTANCE
-        # TODO try except
         cnf['latest_install_addons'] = []
         cnf['latest_update_addons'] = []
         if cnf['commit'] != cnf['latest_commit']:
