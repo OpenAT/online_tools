@@ -833,9 +833,9 @@ def _finish_update(conf, success=str(), error=str(), restore_failed='False'):
 
     # Print final message
     if success:
-        print "%s\n---- Update done! ----" % success
+        print "%s\n---------- UDPATE DONE! ----------" % success
     if error:
-        print "%s---- ERROR: Update failed! ----" % error
+        print "%s\n---------- ERROR: UPDATE FAILED! ----------" % error
 
     # Close conf['update_log_file']
     if conf['production_server']:
@@ -865,7 +865,7 @@ def _compare_urls(url1, url2, wanted_simmilarity=1.0):
 
 
 def _odoo_update(conf):
-    print '\n---- UPDATE start!'
+    print '\n---------- UPDATE START %s ----------' % conf['start_time']
 
     # 1.) No Changes at all
     if conf['commit'] == conf['latest_commit']:
@@ -1053,7 +1053,7 @@ if __name__ == "__main__":
 
     # Start FS-Online
     else:
-        print '\n---------- REGULAR START ----------'
+        print '\n---------- REGULAR START %s ----------' % odoo_config['start_time']
         sys.argv.pop(sys.argv.index('--instance-dir')+1)
         sys.argv.remove('--instance-dir')
         if '--update' in sys.argv:
