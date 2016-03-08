@@ -165,6 +165,7 @@ def _git_checkout(path, commit='o8', user_name=None):
     try:
         print "Git fetch before checkout %s" % path
         shell(['git', 'fetch'], cwd=path, timeout=120, user_name=user_name)
+        shell(['git', 'fetch', '--tags'], cwd=path, timeout=120, user_name=user_name)
     except Exception as e:
         print 'ERROR: git fetch failed before checkout!%s' % pp(e)
     try:
