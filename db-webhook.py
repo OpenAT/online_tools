@@ -25,10 +25,11 @@ def webhook(args):
     cur = dbc.cursor()
 
     print "LISTEN on channel %s" % args.channel
-    cur.execute('LISTEN %s' % args.channel)
+    cur.execute('LISTEN ' + args.channel)
 
     retry = False
     while True:
+        print "Service started!"
         try:
             if retry:
                 print "Retry in 10 seconds!"
