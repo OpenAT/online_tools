@@ -13,7 +13,8 @@ from time import sleep
 def webhook(args):
     print "\nStarting listening on channel %s for database %s on server %s" % (args.channel, args.database, args.machine)
 
-    dbc = psycopg2.connect(database=args.database, host=args.machine, port=args.port)
+    dbc = psycopg2.connect(database=args.database, user=args.dbuser, password=args.dbsecret,
+                           host=args.machine, port=args.port)
     dbc.set_isolation_level(psycopg2.extensions.ISOLATION_LEVEL_AUTOCOMMIT)
     cur = dbc.cursor()
     cur.execute('LISTEN %s' % args.channel)
@@ -26,11 +27,13 @@ def webhook(args):
                 sleep(10)
                 retry = False
             if not select.select([dbc], [], [], 5) == ([], [], []):
+                print "Listening (polling) at database %s." % args.database
                 dbc.poll()
                 while dbc.notifies:
+                    print "Got notify from database %s at channel %s." % (args.channel, args.database)
                     notify = dbc.notifies.pop()
-                    print "notify.payload %s, notify.pid: %d" % (notify.payload, notify.pid)
-                    print "Start webhook. Http GET URL %s" % args.targeturl
+                    print "DEBUG: notify.payload %s, notify.pid: %d" % (notify.payload, notify.pid)
+                    print "Fire webhook. Http GET URL: %s" % args.targeturl
                     urllib2.urlopen(args.targeturl).read()
         except (KeyboardInterrupt, SystemExit):
             print "CRITICAL: KeyboardInterrupt or SystemExit!"
