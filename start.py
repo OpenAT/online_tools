@@ -579,16 +579,20 @@ def _get_cores(conf):
         _git_latest(conf['core_dir'], conf['core_repo'], commit=conf['core'])
 
     # get or create latest core
-    if conf.get('latest_core_dir') != conf['core_dir'] and conf.get('latest_core_dir', False):
-        # get latest core
-        if os.path.exists(conf['latest_core_dir']) and not conf['production_server']:
-            print 'WARNING: Development server found! Skipping %s clone or checkout' % conf['latest_core_dir']
-        else:
-            # Optimization to save time for download
-            if not os.path.exists(conf['latest_core_dir']):
-                shutil.copytree(conf['core_dir'], conf['latest_core_dir'])
-            _git_latest(conf['latest_core_dir'], conf['core_repo'], commit=conf['latest_core'])
-        paths.append(conf['latest_core_dir'])
+    if conf.get('latest_core_dir', False):
+        if conf.get('latest_core_dir') != conf['core_dir']:
+
+            if os.path.exists(conf['latest_core_dir']) and not conf['production_server']:
+                print 'WARNING: Development server found! Skipping %s clone or checkout' % conf['latest_core_dir']
+            else:
+                # Optimization to save time for download
+                if not os.path.exists(conf['latest_core_dir']):
+                    shutil.copytree(conf['core_dir'], conf['latest_core_dir'])
+                # get latest core
+                _git_latest(conf['latest_core_dir'], conf['core_repo'], commit=conf['latest_core'])
+            paths.append(conf['latest_core_dir'])
+    else:
+        print "ERROR: latest_core_dir not in configuration!"
 
     # Set correct rights
     if conf['production_server']:

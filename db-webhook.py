@@ -6,6 +6,7 @@ import select
 import psycopg2
 import psycopg2.extensions
 import urllib2
+from time import sleep
 
 
 # Webhook
@@ -17,8 +18,13 @@ def webhook(args):
     cur = dbc.cursor()
     cur.execute('LISTEN %s' % args.channel)
 
+    retry = False
     while True:
         try:
+            if retry:
+                print "Retry in 10 seconds!"
+                sleep(10)
+                retry = False
             if not select.select([dbc], [], [], 5) == ([], [], []):
                 dbc.poll()
                 while dbc.notifies:
@@ -31,6 +37,7 @@ def webhook(args):
             raise
         except Exception as e:
             print "ERROR: %s" % e
+            retry = True
 
 
 # ----------------------------
