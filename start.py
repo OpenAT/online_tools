@@ -184,10 +184,13 @@ def _git_latest(target_path, repo, commit='o8', user_name=None, pull=False):
         # Git repo exists already
         devnull = open(os.devnull, 'w')
         try:
-            print "Git reset --hard %s" % target_path
-            shell(['git', 'reset', '--hard'], cwd=target_path, timeout=120, stderr=devnull, user_name=user_name)
+            print "Reset git repo and submodules in %s, " % target_path
+            shell(['git', 'reset', '--hard'],
+                  cwd=target_path, timeout=120, stderr=devnull, user_name=user_name)
+            shell(['git', 'submodule', 'update', '-f'],
+                  cwd=target_path, timeout=120, stderr=devnull, user_name=user_name)
         except Exception as e:
-            print 'ERROR: git reset --hard failed!%s' % pp(e)
+            print 'ERROR: Reset git repo and submodules failed!%s' % pp(e)
         try:
             _git_checkout(target_path, commit=commit, user_name=user_name)
         except Exception as e:
@@ -595,9 +598,8 @@ def _get_cores(conf):
                 try:
                     print "Set correct user and rights for core in path %s" % path
                     shell(['chown', '-R', 'root:root', path], cwd=path, timeout=60)
-                    # Make sure python files are executable
-                    shell(['find', path, '-name', '"*.py"', '-exec', 'chmod', '+rx', '{}', '\;'], cwd=path, timeout=120)
                     # Make sure others can read(use) the core and its files too
+                    # HINT: This should be ok already in the core in Github!
                     shell(['chmod', '-R', 'o=rX', path], cwd=path, timeout=60)
                 except (Exception, subprocess32.TimeoutExpired) as e:
                     print 'ERROR: Set user and rights failed! Retcode %s !' % pp(e)
