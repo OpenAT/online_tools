@@ -581,7 +581,6 @@ def _get_cores(conf):
     # get or create latest core
     if conf.get('latest_core_dir', False):
         if conf.get('latest_core_dir') != conf['core_dir']:
-
             if os.path.exists(conf['latest_core_dir']) and not conf['production_server']:
                 print 'WARNING: Development server found! Skipping %s clone or checkout' % conf['latest_core_dir']
             else:
