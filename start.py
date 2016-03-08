@@ -596,7 +596,7 @@ def _get_cores(conf):
                     print "Set correct user and rights for core in path %s" % path
                     shell(['chown', '-R', 'root:root', path], cwd=path, timeout=60)
                     # Make sure python files are executable
-                    shell(['find', path, '-name', '"*.py"', '-exec', 'chmod +rx {} \\;'], cwd=path, timeout=120)
+                    shell(['find', path, '-name', '"*.py"', '-exec', 'chmod', '+rx', '{}', '\;'], cwd=path, timeout=120)
                     # Make sure others can read(use) the core and its files too
                     shell(['chmod', '-R', 'o=rX', path], cwd=path, timeout=60)
                 except (Exception, subprocess32.TimeoutExpired) as e:
