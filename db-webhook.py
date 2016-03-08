@@ -28,7 +28,7 @@ def webhook(args):
     cur.execute('LISTEN ' + args.channel)
 
     while True:
-        print "Service running! %s" % repr(select.select([dbc], [], [], 5))
+        print "Service running!"
         try:
             # Check every 5 seconds if the "readable list" is ready for reading
             # HINT: The optional timeout argument specifies a time-out as a floating point number in seconds.
