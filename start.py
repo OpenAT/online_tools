@@ -176,7 +176,7 @@ def _git_checkout(path, commit='o8', user_name=None):
     return True
 
 
-@retry(Exception, tries=2)
+@retry(Exception, tries=3)
 def _git_latest(target_path, repo, commit='o8', user_name=None, pull=False):
     print "Get latest git repository %s -b %s in %s." % (repo, commit, target_path)
     # HINT: 'target_path' is the full path where the repo should be cloned to
