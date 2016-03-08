@@ -11,9 +11,9 @@ from time import sleep
 
 # Webhook
 def webhook(args):
-    print "\nStarting listening on channel %s for database %s on server %s" % (args.channel, args.database, args.host)
+    print "\nStarting listening on channel %s for database %s on server %s" % (args.channel, args.database, args.machine)
 
-    dbc = psycopg2.connect(database=args.database, host=args.host, port=args.port)
+    dbc = psycopg2.connect(database=args.database, host=args.machine, port=args.port)
     dbc.set_isolation_level(psycopg2.extensions.ISOLATION_LEVEL_AUTOCOMMIT)
     cur = dbc.cursor()
     cur.execute('LISTEN %s' % args.channel)
@@ -45,8 +45,8 @@ def webhook(args):
 # ----------------------------
 parser = argparse.ArgumentParser()
 parser.add_argument('-d', '--database', required='True', help='Database Name')
-parser.add_argument('-h', '--host', required='True', help='Database Host IP or DNS')
-parser.add_argument('-p', '--port', required='True', help='Database Host IP or DNS')
+parser.add_argument('-m', '--machine', required='True', help='Database Host-IP or DNS')
+parser.add_argument('-p', '--port', required='True', help='Database Port')
 parser.add_argument('-u', '--dbuser', required='True', help='Database User')
 parser.add_argument('-s', '--dbsecret', required='True', help='Database Password')
 subparsers = parser.add_subparsers(title='subcommands',
