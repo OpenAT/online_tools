@@ -11,12 +11,20 @@ from time import sleep
 
 # Webhook
 def webhook(args):
-    print "\nStarting listening on channel %s for database %s on server %s" % (args.channel, args.database, args.machine)
+    print "\nStarting listening on channel %s for database %s on server %s" % \
+          (args.channel, args.database, args.machine)
 
+    print "Connect to database"
     dbc = psycopg2.connect(database=args.database, user=args.dbuser, password=args.dbsecret,
                            host=args.machine, port=args.port)
+
+    print "Set database connection to ISOLATION_LEVEL_AUTOCOMMIT"
     dbc.set_isolation_level(psycopg2.extensions.ISOLATION_LEVEL_AUTOCOMMIT)
+
+    print "Create Database cursor"
     cur = dbc.cursor()
+
+    print "LISTEN on channel %s" % args.channel
     cur.execute('LISTEN %s' % args.channel)
 
     retry = False
@@ -36,8 +44,13 @@ def webhook(args):
                     print "Fire webhook. Http GET URL: %s" % args.targeturl
                     urllib2.urlopen(args.targeturl).read()
         except (KeyboardInterrupt, SystemExit):
-            print "CRITICAL: KeyboardInterrupt or SystemExit!"
-            raise
+            print "STOP SCRIPT: KeyboardInterrupt or SystemExit!"
+            try:
+                dbc.close()
+            except:
+                "ERROR: Could not close database connection!"
+            # Stop Script
+            exit(0)
         except Exception as e:
             print "ERROR: %s" % e
             retry = True
