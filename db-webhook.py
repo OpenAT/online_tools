@@ -27,22 +27,21 @@ def webhook(args):
     print "LISTEN on channel %s" % args.channel
     cur.execute('LISTEN ' + args.channel)
 
-    retry = False
     while True:
-        print "Service started!"
+        print "Service running! %s" % repr(select.select([dbc], [], [], 5))
         try:
-            if retry:
-                print "Retry in 10 seconds!"
-                sleep(10)
-                retry = False
+            # Check every 5 seconds if the "readable list" is ready for reading
+            # HINT: The optional timeout argument specifies a time-out as a floating point number in seconds.
+            #       When the timeout argument is omitted the function blocks until at least one file descriptor is
+            #       ready. A time-out value of zero specifies a poll and never blocks.
             if not select.select([dbc], [], [], 5) == ([], [], []):
-                print "Listening (polling) at database %s." % args.database
+                print "Message from database waiting. Polling from %s" % args.database
                 dbc.poll()
                 while dbc.notifies:
-                    print "Got notify from database %s at channel %s." % (args.channel, args.database)
+                    print "Popping notify from database %s at channel %s." % (args.channel, args.database)
                     notify = dbc.notifies.pop()
                     print "DEBUG: notify.payload %s, notify.pid: %d" % (notify.payload, notify.pid)
-                    print "Fire webhook. Http GET URL: %s" % args.targeturl
+                    print "Fire webhook. Http-GET URL: %s" % args.targeturl
                     urllib2.urlopen(args.targeturl).read()
         except (KeyboardInterrupt, SystemExit):
             print "STOP SCRIPT: KeyboardInterrupt or SystemExit!"
@@ -53,8 +52,7 @@ def webhook(args):
             # Stop Script
             exit(0)
         except Exception as e:
-            print "ERROR: %s" % e
-            retry = True
+            print "ERROR: %s" % repr(e)
 
 
 # ----------------------------
