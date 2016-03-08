@@ -5,6 +5,7 @@ import argparse
 import select
 import psycopg2
 import psycopg2.extensions
+import urllib2
 
 
 # Webhook
@@ -17,12 +18,19 @@ def webhook(args):
     cur.execute('LISTEN %s' % args.channel)
 
     while True:
-        if not select.select([dbc], [], [], 5) == ([], [], []):
-            dbc.poll()
-            while dbc.notifies:
-                notify = dbc.notifies.pop()
-                print "notify.payload %s, notify.pid: %d" % (notify.payload, notify.pid)
-                print "Send webhook to %s" % args.targeturl
+        try:
+            if not select.select([dbc], [], [], 5) == ([], [], []):
+                dbc.poll()
+                while dbc.notifies:
+                    notify = dbc.notifies.pop()
+                    print "notify.payload %s, notify.pid: %d" % (notify.payload, notify.pid)
+                    print "Start webhook. Http GET URL %s" % args.targeturl
+                    urllib2.urlopen(args.targeturl).read()
+        except (KeyboardInterrupt, SystemExit):
+            print "CRITICAL: KeyboardInterrupt or SystemExit!"
+            raise
+        except Exception as e:
+            print "ERROR: %s" % e
 
 
 # ----------------------------
