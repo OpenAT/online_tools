@@ -14,7 +14,11 @@ import logging
 def webhook(args):
 
     # Set Log Level
-    logging.basicConfig(level=getattr(logging, args.verbose.upper()))
+    logging.basicConfig(
+            level=getattr(logging, args.verbose.upper()),
+            format='%(asctime)s %(name)-12s %(levelname)-8s %(message)s',
+            datefmt='%d-%m-%y %H:%M',
+    )
     # Log To File
     if args.logfile is not None:
         logging.basicConfig(filename=args.logfile)
@@ -48,7 +52,6 @@ def webhook(args):
     # HINT: This uses the native linux system cues
     while True:
         logging.debug("Service running!")
-        print "Service running"
         try:
             # Check every 5 seconds if the "readable list" is ready for reading
             # HINT: The optional timeout argument specifies a time-out as a floating point number in seconds.
