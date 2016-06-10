@@ -5,54 +5,83 @@ import argparse
 import select
 import psycopg2
 import psycopg2.extensions
+import urllib
 import urllib2
-from time import sleep
+import logging
+#from time import sleep
+
+
+
 
 
 # Webhook
 def webhook(args):
-    print "\nStarting listening on channel %s for database %s on server %s" % \
-          (args.channel, args.database, args.machine)
 
-    print "Connect to database"
-    dbc = psycopg2.connect(database=args.database, user=args.dbuser, password=args.dbsecret,
-                           host=args.machine, port=args.port)
+    # Set Log Level
+    logging.basicConfig(level=getattr(logging, args.verbose.upper()))
+    # Log To File
+    if args.logfile is not None:
+        logging.basicConfig(filename=args.logfile)
+    # Start logging
+    logging.info("\nStarting listening on channel %s for database %s on server %s" % (args.channel, args.database,
+                                                                                      args.machine))
 
-    print "Set database connection to ISOLATION_LEVEL_AUTOCOMMIT"
-    dbc.set_isolation_level(psycopg2.extensions.ISOLATION_LEVEL_AUTOCOMMIT)
+    # Set default value for channel
+    if args.channel is None:
+        args.channel = args.database
 
-    print "Create Database cursor"
-    cur = dbc.cursor()
+    # Open Database Connection
+    try:
+        logging.debug("Connect to database")
+        dbc = psycopg2.connect(database=args.database, user=args.dbuser, password=args.dbsecret,
+                               host=args.machine, port=args.port)
 
-    print "LISTEN on channel %s" % args.channel
-    cur.execute('LISTEN ' + args.channel)
+        logging.debug("Set database connection to ISOLATION_LEVEL_AUTOCOMMIT")
+        logging.debug(dbc.set_isolation_level(psycopg2.extensions.ISOLATION_LEVEL_AUTOCOMMIT))
 
+        logging.debug("Create Database cursor")
+        cur = dbc.cursor()
+
+        logging.debug("LISTEN on channel %s" % args.channel)
+        logging.debug(cur.execute('LISTEN ' + args.channel))
+    except:
+        logging.critical("Could not open database cursor and start listening channel!\n Exiting script!")
+        exit(100)
+
+    # Start to permanently listening for events
+    # HINT: This uses the native linux system cues
     while True:
-        print "Service running!"
+        logging.debug("Service running!")
         try:
             # Check every 5 seconds if the "readable list" is ready for reading
             # HINT: The optional timeout argument specifies a time-out as a floating point number in seconds.
             #       When the timeout argument is omitted the function blocks until at least one file descriptor is
             #       ready. A time-out value of zero specifies a poll and never blocks.
             if not select.select([dbc], [], [], 5) == ([], [], []):
-                print "Message from database waiting. Polling from %s" % args.database
+                logging.info("Message from database waiting. Polling from %s" % args.database)
                 dbc.poll()
                 while dbc.notifies:
-                    print "Popping notify from database %s at channel %s." % (args.channel, args.database)
+                    logging.info("Popping notify from database %s at channel %s." % (args.channel, args.database))
                     notify = dbc.notifies.pop()
-                    print "DEBUG: notify.payload %s, notify.pid: %d" % (notify.payload, notify.pid)
-                    print "Fire webhook. Http-GET URL: %s" % args.targeturl
-                    urllib2.urlopen(args.targeturl).read()
+                    logging.debug("notify.payload %s, notify.pid: %d" % (notify.payload, notify.pid))
+                    # Fire Request
+                    # HINT: http://www.pythonforbeginners.com/python-on-the-web/how-to-use-urllib2-in-python/
+                    logging.info("POST request to URL: %s" % args.targeturl)
+                    post_data = urllib.urlencode({'instance': args.channel})
+                    request = urllib2.Request(args.targeturl, post_data)
+                    response = urllib2.urlopen(request)
+                    logging.info(response.read())
+                    response.close()
         except (KeyboardInterrupt, SystemExit):
-            print "STOP SCRIPT: KeyboardInterrupt or SystemExit!"
+            logging.info("KeyboardInterrupt or SystemExit!\n Normal Exiting script.")
             try:
                 dbc.close()
             except:
-                "ERROR: Could not close database connection!"
-            # Stop Script
+                logging.warning("Could not close database connection!")
+                exit(200)
             exit(0)
         except Exception as e:
-            print "ERROR: %s" % repr(e)
+            logging.error("ERROR: %s" % repr(e))
 
 
 # ----------------------------
@@ -64,14 +93,22 @@ parser.add_argument('-m', '--machine', required='True', help='Database Host-IP o
 parser.add_argument('-p', '--port', required='True', help='Database Port')
 parser.add_argument('-u', '--dbuser', required='True', help='Database User')
 parser.add_argument('-s', '--dbsecret', required='True', help='Database Password')
+parser.add_argument('-l', '--logfile', required='False', help='Log File')
+parser.add_argument('-v', '--verbose', required='False',
+                    choices=['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'],
+                    default='INFO',
+                    help='Log Level (DEBUG, INFO, WARNING, ERROR, CRITICAL)')
 subparsers = parser.add_subparsers(title='subcommands',
                                    description='available commands',
                                    help='')
 
 # SubParser for webhook
 parser_webhook = subparsers.add_parser('webhook', help='Generate Listener for webhook!')
-parser_webhook.add_argument('-c', '--channel', required='True', help='LISTEN Channel Name')
-parser_webhook.add_argument('-t', '--targeturl', required='True', help='Target URL')
+parser_webhook.add_argument('-c', '--channel', required='False',
+                            help='LISTEN Channel Name (Default: -d database name')
+parser_webhook.add_argument('-t', '--targeturl', required='False',
+                            default='https://salt.datadialog.net:8000/hook/sosync/sync',
+                            help='Target URL (Default: https://salt.datadialog.net:8000/hook/sosync/sync)')
 parser_webhook.set_defaults(func=webhook)
 
 # --------------------
