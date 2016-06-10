@@ -13,6 +13,10 @@ import logging
 # Webhook
 def webhook(args):
 
+    # Set default value for channel
+    if args.channel is None:
+        args.channel = args.database
+
     # Set Log Level
     logging.basicConfig(
             level=getattr(logging, args.verbose.upper()),
@@ -25,10 +29,6 @@ def webhook(args):
     # Start logging
     logging.info("Starting listening on channel %s for database %s on server %s" % (args.channel, args.database,
                                                                                       args.machine))
-
-    # Set default value for channel
-    if args.channel is None:
-        args.channel = args.database
 
     # Open Database Connection
     try:
