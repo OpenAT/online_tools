@@ -10,6 +10,9 @@ import urllib2
 import logging
 
 
+# TODO: For security reasons it should be possible to read the data (pw, port ...) from server.conf
+# TODO: This would avoid having the pw in any other file like init
+
 # Webhook
 def webhook(args):
 
@@ -22,10 +25,8 @@ def webhook(args):
             level=getattr(logging, args.verbose.upper()),
             format='%(asctime)s %(name)-8s %(levelname)-8s %(message)s',
             datefmt='%d-%m-%y %H:%M',
+            filename=args.logfile,
     )
-    # Log To File
-    if args.logfile is not None:
-        logging.basicConfig(filename=args.logfile)
     # Start logging
     logging.info("Starting listening on channel %s for database %s on server %s" % (args.channel, args.database,
                                                                                       args.machine))
