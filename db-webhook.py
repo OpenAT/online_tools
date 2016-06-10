@@ -16,7 +16,7 @@ def webhook(args):
     # Set Log Level
     logging.basicConfig(
             level=getattr(logging, args.verbose.upper()),
-            format='%(asctime)s %(name)-12s %(levelname)-8s %(message)s',
+            format='%(asctime)s %(name)-8s %(levelname)-8s %(message)s',
             datefmt='%d-%m-%y %H:%M',
     )
     # Log To File
