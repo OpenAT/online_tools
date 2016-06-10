@@ -48,6 +48,7 @@ def webhook(args):
     # HINT: This uses the native linux system cues
     while True:
         logging.debug("Service running!")
+        print "Service running"
         try:
             # Check every 5 seconds if the "readable list" is ready for reading
             # HINT: The optional timeout argument specifies a time-out as a floating point number in seconds.
@@ -105,7 +106,8 @@ parser.set_defaults(func=webhook)
 # START
 # --------------------
 args = parser.parse_args()
-logging.debug('DEBUG: args: %s' % args)
+# HINT do not user logging here already!
+print 'DEBUG: args: %s' % args
 
 # Call method argparse.ArgumentParser.parse_args.func() of object parser
 args.func(args)
