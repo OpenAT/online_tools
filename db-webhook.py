@@ -88,25 +88,25 @@ def webhook(args):
 # Create the command parser
 # ----------------------------
 parser = argparse.ArgumentParser()
-parser.add_argument('-d', '--database', required='True', help='Database Name')
-parser.add_argument('-m', '--machine', required='True', help='Database Host-IP or DNS')
-parser.add_argument('-p', '--port', required='True', help='Database Port')
-parser.add_argument('-u', '--dbuser', required='True', help='Database User')
-parser.add_argument('-s', '--dbsecret', required='True', help='Database Password')
-parser.add_argument('-l', '--logfile', required='False', help='Log File')
-parser.add_argument('-v', '--verbose', required='False',
+parser.add_argument('-d', '--database', required=True, help='Database Name')
+parser.add_argument('-m', '--machine', required=True, help='Database Host-IP or DNS')
+parser.add_argument('-p', '--port', required=True, help='Database Port')
+parser.add_argument('-u', '--dbuser', required=True, help='Database User')
+parser.add_argument('-s', '--dbsecret', required=True, help='Database Password')
+parser.add_argument('-l', '--logfile', required=False, help='Log File')
+parser.add_argument('-v', '--verbose', required=False,
                     choices=['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'],
                     default='INFO',
-                    help='Log Level (DEBUG, INFO, WARNING, ERROR, CRITICAL)')
+                    help='Log Level (Default: INFO)')
 subparsers = parser.add_subparsers(title='subcommands',
                                    description='available commands',
                                    help='')
 
 # SubParser for webhook
 parser_webhook = subparsers.add_parser('webhook', help='Generate Listener for webhook!')
-parser_webhook.add_argument('-c', '--channel', required='False',
-                            help='LISTEN Channel Name (Default: -d database name')
-parser_webhook.add_argument('-t', '--targeturl', required='False',
+parser_webhook.add_argument('-c', '--channel', required=False,
+                            help='LISTEN Channel Name (Default: -d = database name!)')
+parser_webhook.add_argument('-t', '--targeturl', required=False,
                             default='https://salt.datadialog.net:8000/hook/sosync/sync',
                             help='Target URL (Default: https://salt.datadialog.net:8000/hook/sosync/sync)')
 parser_webhook.set_defaults(func=webhook)
