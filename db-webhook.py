@@ -23,7 +23,7 @@ def webhook(args):
     if args.logfile is not None:
         logging.basicConfig(filename=args.logfile)
     # Start logging
-    logging.info("\nStarting listening on channel %s for database %s on server %s" % (args.channel, args.database,
+    logging.info("Starting listening on channel %s for database %s on server %s" % (args.channel, args.database,
                                                                                       args.machine))
 
     # Set default value for channel
