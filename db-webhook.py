@@ -8,10 +8,6 @@ import psycopg2.extensions
 import urllib
 import urllib2
 import logging
-#from time import sleep
-
-
-
 
 
 # Webhook
@@ -98,24 +94,18 @@ parser.add_argument('-v', '--verbose', required=False,
                     choices=['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'],
                     default='INFO',
                     help='Log Level (Default: INFO)')
-subparsers = parser.add_subparsers(title='subcommands',
-                                   description='available commands',
-                                   help='')
-
-# SubParser for webhook
-parser_webhook = subparsers.add_parser('webhook', help='Generate Listener for webhook!')
-parser_webhook.add_argument('-c', '--channel', required=False,
-                            help='LISTEN Channel Name (Default: -d = database name!)')
-parser_webhook.add_argument('-t', '--targeturl', required=False,
-                            default='https://salt.datadialog.net:8000/hook/sosync/sync',
-                            help='Target URL (Default: https://salt.datadialog.net:8000/hook/sosync/sync)')
-parser_webhook.set_defaults(func=webhook)
+parser.add_argument('-c', '--channel', required=False,
+                    help='LISTEN Channel Name (Default: -d = database name!)')
+parser.add_argument('-t', '--targeturl', required=False,
+                    default='https://salt.datadialog.net:8000/hook/sosync/sync',
+                    help='Target URL (Default: https://salt.datadialog.net:8000/hook/sosync/sync)')
+parser.set_defaults(func=webhook)
 
 # --------------------
 # START
 # --------------------
 args = parser.parse_args()
-print 'DEBUG: args: %s' % args
+logging.debug('DEBUG: args: %s' % args)
 
 # Call method argparse.ArgumentParser.parse_args.func() of object parser
 args.func(args)
