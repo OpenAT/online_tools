@@ -45,7 +45,7 @@ def webhook(args):
         logging.debug("LISTEN on channel %s" % args.channel)
         logging.debug(cur.execute('LISTEN ' + args.channel))
     except:
-        logging.critical("Could not open database cursor and start listening channel!\n Exiting script!")
+        logging.critical("Could not open database cursor and start listening channel! Exiting script!")
         exit(100)
 
     # Start to permanently listening for events
@@ -73,7 +73,7 @@ def webhook(args):
                     logging.info(response.read())
                     response.close()
         except (KeyboardInterrupt, SystemExit):
-            logging.info("KeyboardInterrupt or SystemExit!\n Normal Exiting script.")
+            logging.info("KeyboardInterrupt or SystemExit! Normal exit of script.")
             try:
                 dbc.close()
             except:
