@@ -8,10 +8,35 @@ import psycopg2.extensions
 import urllib
 import urllib2
 import logging
+import time
 
 
 # TODO: For security reasons it should be possible to read the data (pw, port ...) from server.conf
 # TODO: This would avoid having the pw in any other file like init
+
+def db_connection(parserargs):
+    # Open database connection and start listening in channel
+    try:
+        logging.debug("Connect to database")
+        dbc = psycopg2.connect(database=parserargs.database, user=parserargs.dbuser, password=parserargs.dbsecret,
+                               host=parserargs.machine, port=parserargs.port)
+
+        logging.debug("Set database connection to ISOLATION_LEVEL_AUTOCOMMIT")
+        logging.debug(dbc.set_isolation_level(psycopg2.extensions.ISOLATION_LEVEL_AUTOCOMMIT))
+
+        logging.debug("Open Database cursor")
+        cur = dbc.cursor()
+
+        logging.debug("Open LISTEN channel: %s" % parserargs.channel)
+        logging.debug(cur.execute('LISTEN ' + parserargs.channel))
+
+        logging.info("Database %s connection established. Listening on channel %s." % (parserargs.database,
+                                                                                       parserargs.channel))
+        return dbc, cur
+    except Exception as e:
+        logging.warning("Could not open database cursor and start listening channel: %s." % repr(e))
+        return False, False
+
 
 # Webhook
 def webhook(args):
@@ -28,26 +53,11 @@ def webhook(args):
             filename=args.logfile,
     )
     # Start logging
-    logging.info("Starting listening on channel %s for database %s on server %s" % (args.channel, args.database,
+    logging.info("Try listening on channel %s for database %s on server %s" % (args.channel, args.database,
                                                                                       args.machine))
 
-    # Open Database Connection
-    try:
-        logging.debug("Connect to database")
-        dbc = psycopg2.connect(database=args.database, user=args.dbuser, password=args.dbsecret,
-                               host=args.machine, port=args.port)
-
-        logging.debug("Set database connection to ISOLATION_LEVEL_AUTOCOMMIT")
-        logging.debug(dbc.set_isolation_level(psycopg2.extensions.ISOLATION_LEVEL_AUTOCOMMIT))
-
-        logging.debug("Create Database cursor")
-        cur = dbc.cursor()
-
-        logging.debug("LISTEN on channel %s" % args.channel)
-        logging.debug(cur.execute('LISTEN ' + args.channel))
-    except:
-        logging.critical("Could not open database cursor and start listening channel! Exiting script!")
-        exit(100)
+    # Open Database Connection and Listening Channel
+    dbc, cur = db_connection(args)
 
     # Start to permanently listening for events
     # HINT: This uses the native linux system cues
@@ -60,7 +70,12 @@ def webhook(args):
             #       ready. A time-out value of zero specifies a poll and never blocks.
             if not select.select([dbc], [], [], 10) == ([], [], []):
                 logging.info("Message from database waiting. Polling from %s." % args.database)
-                dbc.poll()
+
+                if dbc:
+                    dbc.poll()
+                else:
+                    raise Exception("Database Connection Error")
+
                 while dbc.notifies:
                     logging.info("Popping notify from database %s at channel %s." % (args.channel, args.database))
                     notify = dbc.notifies.pop()
@@ -73,27 +88,23 @@ def webhook(args):
                     response = urllib2.urlopen(request)
                     logging.info(response.read())
                     response.close()
+
         except (KeyboardInterrupt, SystemExit):
-            logging.info("KeyboardInterrupt or SystemExit! Normal exit of script.")
+            logging.info("KeyboardInterrupt or SystemExit.")
             try:
                 logging.info("Try to close the Database Connection.")
                 dbc.close()
             except:
-                logging.warning("Could not close database connection!")
+                logging.error("Could not close database connection!")
                 exit(200)
+            logging.info("Regular script exit.")
+            # Clean Exit
             exit(0)
         except Exception as e:
-            logging.error("Unexpected Error: %s" % repr(e))
-
-            # Check if database connection is still alive
-            try:
-                logging.info("Checking DB connection after unexpected error.")
-                dbc.isolation_level
-            except OperationalError as e:
-                logging.error("DB connection broken: %s" % repr(e))
-                exit(300)
-            except Exception as e:
-                logging.warning("dbc.isolation_level issued the exception: %s" % repr(e))
+            logging.warning("Unexpected Error: %s\n Waiting 5 minutes before retry:" % repr(e))
+            # Sleep for 5 minutes before reconnect to db
+            time.sleep(300)
+            dbc, cur = db_connection(args)
 
 
 # ----------------------------
