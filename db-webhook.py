@@ -58,8 +58,8 @@ def webhook(args):
             # HINT: The optional timeout argument specifies a time-out as a floating point number in seconds.
             #       When the timeout argument is omitted the function blocks until at least one file descriptor is
             #       ready. A time-out value of zero specifies a poll and never blocks.
-            if not select.select([dbc], [], [], 5) == ([], [], []):
-                logging.info("Message from database waiting. Polling from %s" % args.database)
+            if not select.select([dbc], [], [], 10) == ([], [], []):
+                logging.info("Message from database waiting. Polling from %s." % args.database)
                 dbc.poll()
                 while dbc.notifies:
                     logging.info("Popping notify from database %s at channel %s." % (args.channel, args.database))
@@ -76,13 +76,24 @@ def webhook(args):
         except (KeyboardInterrupt, SystemExit):
             logging.info("KeyboardInterrupt or SystemExit! Normal exit of script.")
             try:
+                logging.info("Try to close the Database Connection.")
                 dbc.close()
             except:
                 logging.warning("Could not close database connection!")
                 exit(200)
             exit(0)
         except Exception as e:
-            logging.error("ERROR: %s" % repr(e))
+            logging.error("Unexpected Error: %s" % repr(e))
+
+            # Check if database connection is still alive
+            try:
+                logging.info("Checking DB connection after unexpected error.")
+                dbc.isolation_level
+            except OperationalError as e:
+                logging.error("DB connection broken: %s" % repr(e))
+                exit(300)
+            except Exception as e:
+                logging.warning("dbc.isolation_level issued the exception: %s" % repr(e))
 
 
 # ----------------------------
