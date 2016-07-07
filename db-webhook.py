@@ -71,10 +71,7 @@ def webhook(args):
             if not select.select([dbc], [], [], 10) == ([], [], []):
                 logging.info("Message from database waiting. Polling from %s." % args.database)
 
-                if dbc:
-                    dbc.poll()
-                else:
-                    raise Exception("Database Connection Error")
+                dbc.poll()
 
                 while dbc.notifies:
                     logging.info("Popping notify from database %s at channel %s." % (args.channel, args.database))
@@ -102,9 +99,14 @@ def webhook(args):
             exit(0)
         except Exception as e:
             logging.warning("Unexpected Error: %s\n Waiting 5 minutes before retry:" % repr(e))
-            # Sleep for 5 minutes before reconnect to db
             time.sleep(300)
-            dbc, cur = db_connection(args)
+
+            # Reconnect if database connection is broken
+            try:
+                dbc.isolation_level
+            except:
+                logging.error("Database connection is broken. Trying to reconnect:")
+                dbc, cur = db_connection(args)
 
 
 # ----------------------------
