@@ -728,10 +728,14 @@ def _changed_files(gitrepo_path, current, target='Latest'):
     for subm in shell(['git', 'submodule'], cwd=gitrepo_path).splitlines():
         relative_path = subm.strip().split()[1]
         absolute_path = pj(gitrepo_path, relative_path)
-        current_rev = shell(['git', 'ls-tree', current, relative_path], cwd=gitrepo_path).strip().split()[2]
-        target_rev = shell(['git', 'ls-tree', target, relative_path], cwd=gitrepo_path).strip().split()[2]
-        for f in shell(gitdiff + [current_rev, target_rev], cwd=absolute_path).splitlines():
-            changed_files.append(pj(absolute_path, f))
+        current_rev = shell(['git', 'ls-tree', current, relative_path], cwd=gitrepo_path)
+        target_rev = shell(['git', 'ls-tree', target, relative_path], cwd=gitrepo_path)
+        # Current_rev may be empty if submodule was added in target_rev
+        if len(current_rev) >= 3 and len(target_rev) >= 3 and current_rev != target_rev:
+            current_rev = current_rev.strip().split()[2]
+            target_rev = target_rev.strip().split()[2]
+            for f in shell(gitdiff + [current_rev, target_rev], cwd=absolute_path).splitlines():
+                changed_files.append(pj(absolute_path, f))
 
     print "Changed files found: %s\n" % changed_files
     return changed_files
