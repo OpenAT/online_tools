@@ -33,13 +33,14 @@ import os
 from os.path import join as pj
 import sys
 import logging
-import time
 import ConfigParser
 import pwd
 import subprocess32
 import shutil
 import time
 import zipfile
+from xmlrpclib import ServerProxy
+import base64
 
 
 # ----------------------------
@@ -47,6 +48,40 @@ import zipfile
 # ----------------------------
 def excepthook(*eargs):
     logging.getLogger(__name__).critical('Uncaught exception:\n\n', exc_info=eargs)
+    
+
+def _production_server_check(instance_path):
+    instance_path = os.path.abspath(instance_path)
+    instance = os.path.basename(instance_path)
+    return os.path.exists(pj('/etc/init.d', instance))
+
+
+def _shell(cmd=list(), user=None, cwd=None, env=None, preexec_fn=None, **kwargs):
+    assert isinstance(cmd, (list, tuple)), '_shell(cmd): cmd must be of type list or tuple!'
+    # Working directory
+    cwd = cwd or os.getcwd()
+
+    # Linux User
+    linux_user = pwd.getpwuid(os.getuid())
+    # Switch user and environment if given
+    if user:
+        # Get linux user details from unix user account and password database
+        # HINT: In case the user can not be found pwd will throw an KeyError exception.
+        linux_user = pwd.getpwnam(user)
+        # Create a new os environment
+        env = os.environ.copy()
+        # Set environment variables
+        env['USER'] = user
+        env['LOGNAME'] = linux_user.pw_name
+        env['HOME'] = linux_user.pw_dir
+        # Create a new function that will be called by subprocess32 before the shell command is executed
+        preexec_fn = _switch_user_function(linux_user.pw_uid, linux_user.pw_gid)
+
+    # Log user Current-Working-Directory and shell command to be executed
+    logging.debug('[%s %s]$ %s' % (linux_user.pw_name, cwd, ' '.join(cmd)))
+
+    # Execute shell command and return its output
+    return subprocess32.check_output(cmd, cwd=cwd, env=env, preexec_fn=preexec_fn, **kwargs)
 
 
 # TODO: Make this a bit smarter ;) !
@@ -55,6 +90,54 @@ def _service_exists(service_name):
     if os.path.exists(service_file):
         return True
     return False
+
+
+def _service_running(service):
+    pidfile = pj('/var/run', service + '.pid')
+    logging.debug("Check if service %s ist running by pidfile at %s" % (service, pidfile))
+    if os.path.isfile(pidfile):
+        with open(pidfile, 'r') as pidfile:
+            pid = str(pidfile.readline()).rstrip('\n')
+            proc_dir = pj('/proc', pid)
+            logging.debug("Process ID from pidfile %s" % pid)
+            logging.debug("Process directory to check for if service is running %s" % proc_dir)
+            if os.path.exists(proc_dir):
+                logging.debug("Service %s is running!" % service)
+                return True
+    logging.debug("Service %s is NOT running!" % service)
+    return False
+
+
+def _service_control(service, state, wait=10):
+    logging.info("Service %s will be %sed" % (service, state))
+    # Basic Checks
+    assert state in ["start", "stop", "restart", "reload"], '_service_control(service, state, wait=10) ' \
+                                                            '"state" must be start, stop, restart or reload'
+    assert _service_exists(service), "Service %s not found at /etc/init.d/%s"
+    # Service is already running and should be started
+    if state == "start" and _service_running(service):
+        logging.warn("Nothing to do! Service %s is already running." % service)
+        return True
+    # Service is already stopped and should be stopped
+    if state == "stop" and not _service_running(service):
+        logging.warn("Nothing to do! Service %s is already stopped." % service)
+        return True
+
+    # Set service state
+    _shell(['service', service, state])
+
+    # Wait for service to change state
+    logging.debug("Waiting %s seconds for service to change state")
+    time.sleep(wait)
+
+    # Return
+    if (service in ["start", "restart", "reload"] and _service_running(service)) or \
+       (service == "stop" and not _service_running(service)):
+        logging.info("Service %s successfully changed state to %sed" % (service, state))
+        return True
+    else:
+        logging.error('Service %s could not be %sed' % (service, state))
+        return False
 
 
 def _inifile_to_dict(inifile, section='options'):
@@ -100,34 +183,6 @@ def _switch_user_function(user_uid, user_gid):
     return inner
 
 
-def _shell(cmd=list(), user=None, cwd=None, env=None, preexec_fn=None, **kwargs):
-    assert isinstance(cmd, (list, tuple)), '_shell(cmd): cmd must be of type list or tuple!'
-    # Working directory
-    cwd = cwd or os.getcwd()
-
-    # Linux User
-    linux_user = pwd.getpwuid(os.getuid())
-    # Switch user and environment if given
-    if user:
-        # Get linux user details from unix user account and password database
-        # HINT: In case the user can not be found pwd will throw an KeyError exception.
-        linux_user = pwd.getpwnam(user)
-        # Create a new os environment
-        env = os.environ.copy()
-        # Set environment variables
-        env['USER'] = user
-        env['LOGNAME'] = linux_user.pw_name
-        env['HOME'] = linux_user.pw_dir
-        # Create a new function that will be called by subprocess32 before the shell command is executed
-        preexec_fn = _switch_user_function(linux_user.pw_uid, linux_user.pw_gid)
-
-    # Log user Current-Working-Directory and shell command to be executed
-    logging.debug('[%s %s]$ %s' % (linux_user.pw_name, cwd, ' '.join(cmd)))
-
-    # Execute shell command and return its output
-    return subprocess32.check_output(cmd, cwd=cwd, env=env, preexec_fn=preexec_fn, **kwargs)
-
-
 def _git_submodule_sha1(root_repo_path, submodule=str()):
     # HINT: Full submodule path needed!
     #       e.g.: 'fundraising_studio/online' for 'dadi/fundraising_studio/online'
@@ -150,14 +205,16 @@ def _git_submodule_sha1(root_repo_path, submodule=str()):
     return submodule_sha1
 
 
-def _odoo_config(instance_path, production_server=False, cmd_args=list()):
-    """ Parse odoo configuration file
+def _odoo_config(instance_path, cmd_args=list()):
+    """ Parse odoo configuration file and command line arguments
 
     :param instance_path: string
-    :param production_server: bool
     :param cmd_args: list Optional CMD Arguments that will be passed on to odoo
-    :return: dict Odoo startup configuration
+    :return: dict Odoo configuration dictionary with odoo startup commandline arguments
     """
+    # Check for production server
+    production_server = _production_server_check(instance_path)
+    
     # Assert instance_path
     instance_path = os.path.normpath(instance_path)
     assert os.path.exists(instance_path), 'Instance path %s not found!' % instance_path
@@ -166,6 +223,7 @@ def _odoo_config(instance_path, production_server=False, cmd_args=list()):
     _test_optional_odoo_args(cmd_args)
 
     # Odoo server config default development values
+    # HINT: Will be overridden later on from values of the server.conf file if given
     instance = os.path.basename(instance_path)
     oc = {
         'db_name': instance,
@@ -241,6 +299,31 @@ def _odoo_config(instance_path, production_server=False, cmd_args=list()):
     return oc
 
 
+def _odoo_access_check(instance_path, odoo_config=None):
+    instance_path = os.path.abspath(instance_path)
+    instance = os.path.basename(instance_path)
+    odoo_config = odoo_config or _odoo_config(instance_path)
+
+    logging.debug('Checking odoo xmlrpc access for instance %s' % instance)
+
+    # Getting xmlrpc connection parameters
+    # Default Settings
+    xmlrpc_interface = "127.0.0.1"
+    xmlrpc_port = "8069"
+    # Overwrite with xmlrpcs or xmlrpc from server.conf
+    if odoo_config.get('xmlrpcs'):
+        xmlrpc_interface = odoo_config.get('xmlrpcs_interface') or xmlrpc_interface
+        xmlrpc_port = odoo_config.get('xmlrpcs_port') or xmlrpc_port
+    elif odoo_config.get('xmlrpc'):
+        xmlrpc_interface = odoo_config.get('xmlrpc_interface') or xmlrpc_interface
+        xmlrpc_port = odoo_config.get('xmlrpc_port') or xmlrpc_port
+
+    # Connect to odoo by xmlrpc
+    odoo = ServerProxy('http://'+xmlrpc_interface+'/xmlrpc/db')
+
+
+
+
 # ----------------------------
 # SCRIPT MODES
 # ----------------------------
@@ -305,6 +388,7 @@ def backup(instance_path, backup_file=None, start_time=str(time.strftime('%Y-%m-
     backup_time = time.time() - begin_backup
     logging.debug('Backup size %s MB' % size_in_mb)
     logging.debug('Backup time %s seconds (%s minutes)' % ("{0:.0f}".format(backup_time),
+                                                           "{0:.1f}".format(backup_time/60)))
     logging.debug('Backup file %s' % backup_file)
     logging.info('Backup finished successfully!')
     return str(backup_file)
@@ -321,8 +405,9 @@ def restore(instance_path, backup_to_restore):
     assert os.path.exists(instance_path), 'Instance not found at %s' % instance_path
     assert os.path.exists(backup_to_restore), 'Backup to restore not found at %s' % backup_to_restore
 
+    # TODO: Test this code extensively
     # Check if backup_to_restore is a custom backup
-    # If it is a folder it is always a custom backup
+    # HINT: If it is a folder it is always a custom backup
     custom_backup = backup_to_restore if os.path.isdir(backup_to_restore) else None
     if os.path.isfile(backup_to_restore):
         assert zipfile.is_zipfile(backup_to_restore), 'Backup file must be a zip archive!'
@@ -336,10 +421,13 @@ def restore(instance_path, backup_to_restore):
                     custom_backup), 'Folder to unzip custom backup already exists at %s' % custom_backup
                 archive.extractall(custom_backup)
 
-    # Restore through xmlrpc/odoo if odoo is accessible by xmlrpc and we have a native odoo backup
-    logging.info('Restoring native odoo backup by xmlrpc from %s' % custom_backup)
+    # TODO: Restore through xmlrpc/odoo if odoo is accessible by xmlrpc and we have a native odoo backup
+    if not custom_backup and _odoo_access_check(instance_path):
+        logging.info('Restoring native odoo backup by xmlrpc from %s' % backup_to_restore)
+        _odoo_restore(instance_path, backup_to_restore)
+        return True
 
-    # Else manually restore
+    # TODO: Else manually restore
     logging.info('Restoring custom backup from %s' % custom_backup)
     # Stop Instance
     # Restore Files
@@ -444,7 +532,7 @@ def fs_online():
 
     # RESTORE
     if known_args.restore:
-        restore(settings=s)
+        restore(s['instance_path'], known_args.restore)
         exit(0)
 
     # UPDATE
@@ -500,7 +588,7 @@ if __name__ == "__main__":
     # known_args        (Namespace)         CMD settings known to command parser
     # unknown_args      (list)              CMD settings not set in command parser
     # s                 (dict)              Settings dictionary
-    # log               (logging instance)  Globally used logger __main__
+    # logging           (logging instance)  Globally used logger __main__
     # -------------------------------------------------------------------------------
 
     # Get the cmd args from argparse
@@ -515,7 +603,7 @@ if __name__ == "__main__":
     s.update({
         'start_time': str(time.strftime('%Y-%m-%d_%H-%M-%S')),
         'logfile': os.path.abspath(known_args.logfile) if known_args.logfile else known_args.logfile,
-        'production_server': True if os.path.exists(pj('/etc/init.d', s['instance'])) else False,
+        'production_server': _production_server_check(s['instance_path']),
     })
     # Check instance path
     assert os.path.exists(s['instance_path']), 'Instance path %s not found!' % known_args.instance_path
