@@ -79,7 +79,7 @@ def webhook(args):
                     logging.debug("notify.payload %s, notify.pid: %d" % (notify.payload, notify.pid))
                     # Fire Request
                     # HINT: http://www.pythonforbeginners.com/python-on-the-web/how-to-use-urllib2-in-python/
-                    logging.info("POST request to URL: %s" % args.targeturl)
+                    logging.info("GET request to URL: %s" % args.targeturl)
 
                     # DISABLED BECAUSE NOW WE DIRECTLY CALL THE SOSYNC MINION e.g.: sosync.dadi.datadialog.net
                     #post_data = urllib.urlencode({'instance': args.channel})
