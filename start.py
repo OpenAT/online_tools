@@ -38,6 +38,7 @@ def retry(ExceptionToCheck, tries=4, delay=3, backoff=2, logger=None):
     :param logger: logger to use. If None, print
     :type logger: logging.Logger instance
     """
+
     def deco_retry(f):
 
         @wraps(f)
@@ -63,9 +64,9 @@ def retry(ExceptionToCheck, tries=4, delay=3, backoff=2, logger=None):
 
 
 def pp(e):
-    output = '\n\n'+str(e)+'\n'
+    output = '\n\n' + str(e) + '\n'
     if hasattr(e, 'output'):
-        output += str(e.output)+'\n'
+        output += str(e.output) + '\n'
     # print output
     return output
 
@@ -82,6 +83,7 @@ def _change_user(user_uid, user_gid):
         except Exception as e:
             print 'WARNING: Could not change user_id and group_id!%s' % pp(e)
             return True
+
     # ATTENTION: not inner() because we want to return the function and not the result!
     return inner
 
@@ -265,24 +267,27 @@ def _odoo_config(instance_path):
     cnf['instance'] = os.path.basename(instance_path)
     cnf['start_time'] = str(time.strftime('%Y-%m-%d_%H-%M-%S'))
     # Production Server?
+    print "Check for Production Server"
     cnf['production_server'] = False
     if _service_exists(cnf['instance']):
         cnf['production_server'] = True
+        print "Production server found"
 
     # Log to File!
     if cnf['production_server']:
-        cnf['update_log_file'] = '/var/log/online/'+cnf['instance']+'/'+cnf['instance']+'--update.log'
+        print "Config: Start the logging to update_log_file"
+        cnf['update_log_file'] = '/var/log/online/' + cnf['instance'] + '/' + cnf['instance'] + '--update.log'
         if os.path.isfile(cnf['update_log_file']):
-            shell(['chown', cnf['instance']+':'+cnf['instance'], cnf['update_log_file']])
-        sys.stdout = open(cnf['update_log_file'], 'a+', buffering=1)
-        sys.stderr = open(cnf['update_log_file'], 'a+', buffering=1)
+            shell(['chown', cnf['instance'] + ':' + cnf['instance'], cnf['update_log_file']])
+        sys.stdout = open(cnf['update_log_file'], 'a+', buffering=0)
+        sys.stderr = open(cnf['update_log_file'], 'a+', buffering=0)
 
     # server.conf (or -c)
     print "\nReading config file."
     configfile = False
 
     if '-c' in sys.argv:
-        configfile = sys.argv[sys.argv.index('-c')+1]
+        configfile = sys.argv[sys.argv.index('-c') + 1]
     elif os.path.isfile(pj(instance_path, 'server.conf')):
         print "Using default config file server.conf!"
         configfile = pj(instance_path, 'server.conf')
@@ -332,7 +337,7 @@ def _odoo_config(instance_path):
     assert os.path.exists(cnf['root_dir']), 'CRITICAL: root_dir not found! %s ' % cnf['root_dir']
 
     # Directories
-    cnf['core_dir'] = pj(cnf['root_dir'], 'online_'+cnf['core'])
+    cnf['core_dir'] = pj(cnf['root_dir'], 'online_' + cnf['core'])
     cnf['instance_dir'] = instance_path
     cnf['data_dir'] = cnf.get('data_dir', pj(cnf['instance_dir'], 'data_dir'))
     cnf['backup_dir'] = pj(cnf['instance_dir'], 'update')
@@ -351,14 +356,14 @@ def _odoo_config(instance_path):
             cnf['service'] = os.path.isfile(str(pidfile.readline()))
 
     # Database  (commandline > or configfile > or foldername)
-    cnf['db_name'] = sys.argv[sys.argv.index('-d')+1] if '-d' in sys.argv else \
+    cnf['db_name'] = sys.argv[sys.argv.index('-d') + 1] if '-d' in sys.argv else \
         cnf.get('db_name', cnf['instance'])
     cnf['db_user'] = cnf.get('db_user', 'vagrant')
     cnf['db_password'] = cnf.get('db_password', 'vagrant')
     cnf['db_host'] = cnf.get('db_host', '127.0.0.1')
     cnf['db_port'] = cnf.get('db_port', '5432')
     cnf['db_url'] = 'postgresql://' + cnf['db_user'] + ':' + cnf['db_password'] + \
-        '@' + cnf['db_host'] + ':' + cnf['db_port'] + '/' + cnf['db_name']
+                    '@' + cnf['db_host'] + ':' + cnf['db_port'] + '/' + cnf['db_name']
 
     # Check root access
     try:
@@ -412,7 +417,7 @@ def _odoo_update_config(cnf):
         cnf['latest_instance'] = cnf['instance'] + '_update'
 
         # Backup (folder for his run of the script)
-        cnf['backup'] = pj(cnf['backup_dir'], cnf['db_name']+'-pre-update_backup-'+cnf['start_time'])
+        cnf['backup'] = pj(cnf['backup_dir'], cnf['db_name'] + '-pre-update_backup-' + cnf['start_time'])
 
         # Check if an update is already running
         cnf['update_lock_file'] = pj(cnf['instance_dir'], 'update.lock')
@@ -438,12 +443,12 @@ def _odoo_update_config(cnf):
                                                             % cnf['update_lock_file']
         if cnf['production_server']:
             shell(['chmod', 'o=', cnf['update_lock_file']])
-            shell(['chown', cnf['instance']+':'+cnf['instance'], cnf['update_lock_file']])
+            shell(['chown', cnf['instance'] + ':' + cnf['instance'], cnf['update_lock_file']])
 
         # Database
         cnf['latest_db_name'] = cnf['db_name'] + '_update'
         cnf['latest_db_url'] = 'postgresql://' + cnf['db_user'] + ':' + cnf['db_password'] + \
-            '@' + cnf['db_host'] + ':' + cnf['db_port'] + '/' + cnf['latest_db_name']
+                               '@' + cnf['db_host'] + ':' + cnf['db_port'] + '/' + cnf['latest_db_name']
 
         # Directories
         cnf['latest_inst_dir'] = pj(cnf['instance_dir'], 'update/' + cnf['latest_db_name'])
@@ -485,13 +490,13 @@ def _odoo_update_config(cnf):
                 if instance_latest.get('update_addons') != 'False':
                     cnf['latest_update_addons'] = filter(None, instance_latest.get('update_addons', '').split(','))
             except Exception as e:
-                _finish_update(cnf, error="CRITICAL: Could not set latest_[install/update]_addons!"+pp(e))
+                _finish_update(cnf, error="CRITICAL: Could not set latest_[install/update]_addons!" + pp(e))
 
         # Get cores before we load core.ini
         try:
             _get_cores(cnf)
         except Exception as e:
-            _finish_update(cnf, error="CRITICAL: Could not get cores!"+pp(e))
+            _finish_update(cnf, error="CRITICAL: Could not get cores!" + pp(e))
 
         # latest core.ini (core.ini is optional!)
         core_update = dict()
@@ -501,7 +506,7 @@ def _odoo_update_config(cnf):
                 core_update.read(pj(cnf['latest_core_dir'], 'core.ini'))
                 core_update = dict(core_update.items('options'))
             except Exception as e:
-                _finish_update(cnf, error="CRITICAL: Could not read core.ini!"+pp(e))
+                _finish_update(cnf, error="CRITICAL: Could not read core.ini!" + pp(e))
 
         # Forced addons to install or update for the CORE
         cnf['latest_core_install_addons'] = []
@@ -513,7 +518,7 @@ def _odoo_update_config(cnf):
                 if core_update.get('update_addons') != 'False':
                     cnf['latest_core_update_addons'] = filter(None, core_update.get('update_addons', '').split(','))
             except Exception as e:
-                _finish_update(cnf, error="CRITICAL: Could not set latest_core_[install/update]_addons!"+pp(e))
+                _finish_update(cnf, error="CRITICAL: Could not set latest_core_[install/update]_addons!" + pp(e))
 
         # All forced addons to update and install
         cnf['addons_to_install'] = cnf['latest_core_install_addons'] + cnf['latest_install_addons']
@@ -532,7 +537,7 @@ def _odoo_update_config(cnf):
                                       '--load', cnf['server_wide_modules'],
                                       '--db-template', 'template0',
                                       '--workers', '0',
-                                      '--xmlrpc-port', str(int(cnf.get('xmlrpc_port', 8000))+10)
+                                      '--xmlrpc-port', str(int(cnf.get('xmlrpc_port', 8000)) + 10)
                                       ]
 
         # server.conf file
@@ -549,9 +554,9 @@ def _odoo_update_config(cnf):
                 'data_dir': cnf['latest_data_dir'],
                 'server_wide_modules': cnf['server_wide_modules'],
                 'xmlrpc': 'True',
-                'xmlrpc_port': str(int(cnf.get('xmlrpc_port', 8000))+10),
+                'xmlrpc_port': str(int(cnf.get('xmlrpc_port', 8000)) + 10),
                 'xmlrpcs': 'True',
-                'xmlrpcs_port': str(int(cnf.get('xmlrpcs_port', 8001))+10),
+                'xmlrpcs_port': str(int(cnf.get('xmlrpcs_port', 8001)) + 10),
             }
             if cnf['production_server']:
                 values.update({'logfile': '/var/log/online/' + cnf['instance'] + '/' + cnf['latest_instance'] + '.log'})
@@ -620,7 +625,7 @@ def _odoo_backup(conf, backup_target=None):
         raise Exception('CRITICAL: Can not create backup dir %s%s' % (os.makedirs(backup_target), pp(e)))
 
     # Backup filestore from data_dir for instance database
-    source_filestore = pj(conf['data_dir'], 'filestore/'+conf['db_name'])
+    source_filestore = pj(conf['data_dir'], 'filestore/' + conf['db_name'])
     print 'Backup of filestore for db %s at %s to %s' % (conf['db_name'], source_filestore, backup_target)
     assert os.path.exists(source_filestore), 'CRITICAL: Source filestore not found for database! %s' % source_filestore
     shutil.copytree(source_filestore, pj(backup_target, 'filestore'))
@@ -629,7 +634,7 @@ def _odoo_backup(conf, backup_target=None):
     try:
         print 'Backup of database at %s to %s' % (conf['db_name'], backup_target)
         cmd = ['pg_dump', '--format=c', '--no-owner',
-               '--dbname='+conf['db_url'], '--file='+pj(backup_target, 'db.dump')]
+               '--dbname=' + conf['db_url'], '--file=' + pj(backup_target, 'db.dump')]
         shell(cmd, timeout=300)
     except Exception as e:
         raise Exception('CRITICAL: Backup of database failed!%s' % pp(e))
@@ -645,12 +650,13 @@ def _odoo_restore(backup_dir, conf, data_dir_target='', database_target_url=''):
     database_target_url = database_target_url or conf['db_url']
 
     database_name = database_target_url.rsplit('/', 1)[-1]
-    database_restore_cmd = ['pg_restore', '--format=c', '--no-owner', '-n', 'public', '--dbname='+database_target_url, database_source]
+    database_restore_cmd = ['pg_restore', '--format=c', '--no-owner', '-n', 'public', '--dbname=' + database_target_url,
+                            database_source]
 
     # data_dir
     data_dir_source = pj(backup_dir, 'filestore')
     data_dir_target = data_dir_target or conf['data_dir']
-    data_dir_target = pj(data_dir_target, 'filestore/'+database_name)
+    data_dir_target = pj(data_dir_target, 'filestore/' + database_name)
 
     # odoo backup format detection
     if os.path.exists(pj(backup_dir, 'dump.sql')):
@@ -748,7 +754,7 @@ def _find_addons_byfile(changed_files, stop=[]):
         filetype = os.path.splitext(f)[1]
         if filetype in ('.py', '.xml', '.po', '.pot'):
             path = os.path.dirname(f)
-            #print "DEBUG: path %s filetype %s isfile %s %s" % (path, filetype, pj(path, '__openerp__.py'), os.path.isfile(pj(path, '__openerp__.py')))
+            # print "DEBUG: path %s filetype %s isfile %s %s" % (path, filetype, pj(path, '__openerp__.py'), os.path.isfile(pj(path, '__openerp__.py')))
             while path not in ['/', ] + stop:
                 if os.path.isfile(pj(path, '__openerp__.py')):
                     if filetype in ('.py', '.xml', '.po'):
@@ -830,7 +836,7 @@ def _finish_update(conf, success=str(), error=str(), restore_failed='False'):
             status_ini.write(writefile)
         if conf['production_server']:
             shell(['chmod', 'o=', conf['status_file']])
-            shell(['chown', conf['instance']+':'+conf['instance'], conf['status_file']])
+            shell(['chown', conf['instance'] + ':' + conf['instance'], conf['status_file']])
     except Exception as e:
         print 'ERROR: Could not update %s%s' % (conf['status_file'], pp(e))
 
@@ -841,7 +847,7 @@ def _finish_update(conf, success=str(), error=str(), restore_failed='False'):
     except Exception as e:
         print 'ERROR: Could not remove update lock file! %s%s' % (conf['update_lock_file'], pp(e))
 
-    # TODO: remove old temp backups (if more than 3)
+        # TODO: remove old temp backups (if more than 3)
         # get dirs and sort by date
         # remove all but the last three
 
@@ -870,7 +876,7 @@ def _compare_urls(url1, url2, wanted_simmilarity=1.0):
         url2 = urllib2.urlopen(url2)
         url2_content = url2.read()
         simmilarity = difflib.SequenceMatcher(None, url1_content, url2_content).ratio()
-        print "Websites match to %s percent." % simmilarity*100
+        print "Websites match to %s percent." % simmilarity * 100
         if wanted_simmilarity >= simmilarity:
             return True
     except Exception as e:
@@ -892,16 +898,16 @@ def _odoo_update(conf):
         if addons_to_update:
             conf['addons_to_update_csv'] = ",".join([str(item) for item in conf['addons_to_update'] + addons_to_update])
     except Exception as e:
-        return _finish_update(conf, error='CRITICAL: Search for addons to update failed!'+pp(e))
+        return _finish_update(conf, error='CRITICAL: Search for addons to update failed!' + pp(e))
 
     # 2.) No addons to install or update found and cores are the same
     if not conf['addons_to_install_csv'] and not conf['addons_to_update_csv'] and conf['core'] == conf['latest_core']:
         print '\nUpdate instance repo without restart!'
         try:
             _git_checkout(conf['instance_dir'], commit=conf['latest_commit'], user_name=conf['instance'])
-            return _finish_update(conf, success='Pulled instance repo '+conf['latest_commit']+' without restart!')
+            return _finish_update(conf, success='Pulled instance repo ' + conf['latest_commit'] + ' without restart!')
         except Exception as e:
-            return _finish_update(conf, error='CRITICAL: Checkout '+conf['latest_commit']+' failed!'+pp(e))
+            return _finish_update(conf, error='CRITICAL: Checkout ' + conf['latest_commit'] + ' failed!' + pp(e))
 
     # 3.) Update is required
     print '\nUpdate is required!'
@@ -911,7 +917,7 @@ def _odoo_update(conf):
         print 'Backup before update: %s' % conf['backup']
         backup = _odoo_backup(conf, backup_target=conf['backup'])
     except Exception as e:
-        _finish_update(conf, error='CRITICAL: Backup before update failed. Skipping update.'+pp(e))
+        _finish_update(conf, error='CRITICAL: Backup before update failed. Skipping update.' + pp(e))
         return False
 
     # TODO: Run language Updates
@@ -928,7 +934,6 @@ def _odoo_update(conf):
 
         # Restore backup
         _odoo_restore(backup, conf, data_dir_target=conf['latest_data_dir'], database_target_url=conf['latest_db_url'])
-
 
         # Server Script and command working directory
         odoo_server = [pj(conf['latest_core_dir'], 'odoo/openerp-server'), ]
@@ -952,7 +957,7 @@ def _odoo_update(conf):
             shell(odoo_server + conf['latest_startup_args'] + args, cwd=odoo_cwd, timeout=600,
                   user_name=conf['instance'])
     except Exception as e:
-        return _finish_update(conf, error='CRITICAL: Update dry-run failed!'+pp(e))
+        return _finish_update(conf, error='CRITICAL: Update dry-run failed!' + pp(e))
 
     # 3.1.1) Compare webpages (and permanently Start the Dry-Run Instance).
     # print "\n-- Start the Dry-Run instance service permanently and check webpages for any changes."
@@ -1020,7 +1025,7 @@ def _odoo_update(conf):
 
             except Exception as e:
                 # RESTORE FAILED!
-                return _finish_update(conf, error='CRITICAL: Update failed! DATABASE NOT RESTORED!'+pp(e),
+                return _finish_update(conf, error='CRITICAL: Update failed! DATABASE NOT RESTORED!' + pp(e),
                                       restore_failed='True')
 
             # Restore successful after failed update
@@ -1039,16 +1044,18 @@ def _odoo_update(conf):
 if __name__ == "__main__":
 
     # Make sure there is no = used for sys args
-    #assert any("=" in s for s in sys.argv[1:]) == False, 'ERROR: Do not use = in startup arguments!\n' \
+    # assert any("=" in s for s in sys.argv[1:]) == False, 'ERROR: Do not use = in startup arguments!\n' \
     #                                                     'Wrong: --instance_dir=/odoo/dadi\n' \
     #                                                     'Correct: --instance_dir /odoo/dadi'
     # TODO: Check if --addons sys.argv
 
     # Get the instance_dir
-    instance_dir = sys.argv[sys.argv.index('--instance-dir')+1]
+    print "Check the instance dir"
+    instance_dir = sys.argv[sys.argv.index('--instance-dir') + 1]
     assert os.path.exists(instance_dir), 'CRITICAL: --instance_dir directory not found or set: %s' % instance_dir
 
     # Get the odoo configuration and/or defaults
+    print "Get the odoo config"
     odoo_config = _odoo_config(instance_dir)
 
     # Create a backup
@@ -1066,13 +1073,13 @@ if __name__ == "__main__":
         if odoo_config['production_server']:
             try:
                 _service_control(odoo_config['instance'], running=False)
-                _odoo_restore(sys.argv[sys.argv.index('--restore')+1], odoo_config)
+                _odoo_restore(sys.argv[sys.argv.index('--restore') + 1], odoo_config)
             except:
                 print "ERROR: Could not stop service before restore!"
         else:
             print "WARNING: Development server found! Stopping the service skipped!"
-            _odoo_restore(sys.argv[sys.argv.index('--restore')+1], odoo_config)
-        sys.argv.pop(sys.argv.index('--restore')+1)
+            _odoo_restore(sys.argv[sys.argv.index('--restore') + 1], odoo_config)
+        sys.argv.pop(sys.argv.index('--restore') + 1)
         sys.argv.remove('--restore')
 
     # Update FS-Online
@@ -1088,7 +1095,7 @@ if __name__ == "__main__":
     # Start FS-Online
     else:
         print '\n---------- REGULAR START %s ----------' % odoo_config['start_time']
-        sys.argv.pop(sys.argv.index('--instance-dir')+1)
+        sys.argv.pop(sys.argv.index('--instance-dir') + 1)
         sys.argv.remove('--instance-dir')
         if '--update' in sys.argv:
             sys.argv.remove('--update')
@@ -1107,8 +1114,10 @@ if __name__ == "__main__":
         if odoo_config['workers'] != str(0):
             print "INFO: Evented mode enabled! workers: %s" % odoo_config['workers']
             import gevent.monkey
+
             gevent.monkey.patch_all()
             import psycogreen.gevent
+
             psycogreen.gevent.patch_psycopg()
 
         # Load openerp
@@ -1116,12 +1125,15 @@ if __name__ == "__main__":
             # we are in debug mode ensure that odoo don't try to start in gevented mode
             print 'INFO: Evented mode disabled! workers = 0 or sys.gettrace() found.\n'
             import openerp
+
             openerp.evented = False
         else:
             print "WARNING: Evented mode enabled! workers: %s\n" % odoo_config['workers']
             import gevent.monkey
+
             gevent.monkey.patch_all()
             import psycogreen.gevent
+
             psycogreen.gevent.patch_psycopg()
             import openerp
 

@@ -22,6 +22,7 @@ def newdb(args):
     else:
         sys.exit(2)
 
+
 # Duplicate Database:
 def dupdb(args):
     # Duplicate the Database
@@ -31,6 +32,7 @@ def dupdb(args):
         sys.exit(0)
     else:
         sys.exit(2)
+
 
 # Backup DB
 # service/db.py:   def exp_dump(db_name):
@@ -42,6 +44,7 @@ def backup(args):
             sys.exit(0)
         else:
             sys.exit(2)
+
 
 # Restore DB
 # service/db.py:   def exp_restore(db_name, data, copy=False):
@@ -96,7 +99,7 @@ args = parser.parse_args()
 print 'DEBUG: args: %s' % args
 
 # XMLRPC Proxy Connection
-server = ServerProxy('http://'+str(args.hostserver)+'/xmlrpc/db')
+server = ServerProxy('http://' + str(args.hostserver) + '/xmlrpc/db')
 print "server: %s" % server
 
 # Call method argparse.ArgumentParser.parse_args.func() of object parser

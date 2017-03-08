@@ -40,21 +40,20 @@ def db_connection(parserargs):
 
 # Webhook
 def webhook(args):
-
     # Set default value for channel
     if args.channel is None:
         args.channel = args.database
 
     # Set Log Level
     logging.basicConfig(
-            level=getattr(logging, args.verbose.upper()),
-            format='%(asctime)s %(name)-8s %(levelname)-8s %(message)s',
-            datefmt='%d-%m-%y %H:%M',
-            filename=args.logfile,
+        level=getattr(logging, args.verbose.upper()),
+        format='%(asctime)s %(name)-8s %(levelname)-8s %(message)s',
+        datefmt='%d-%m-%y %H:%M',
+        filename=args.logfile,
     )
     # Start logging
     logging.info("Try listening on channel %s for database %s on server %s" % (args.channel, args.database,
-                                                                                      args.machine))
+                                                                               args.machine))
 
     # Open Database Connection and Listening Channel
     dbc, cur = db_connection(args)
