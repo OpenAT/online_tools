@@ -277,8 +277,12 @@ def _odoo_config(instance_path):
     if cnf['production_server']:
         print "Config: Start the logging to update_log_file"
         cnf['update_log_file'] = '/var/log/online/' + cnf['instance'] + '/' + cnf['instance'] + '--update.log'
-        if os.path.isfile(cnf['update_log_file']):
-            shell(['chown', cnf['instance'] + ':' + cnf['instance'], cnf['update_log_file']])
+        try:
+            if os.path.isfile(cnf['update_log_file']):
+                shell(['chown', cnf['instance'] + ':' + cnf['instance'], cnf['update_log_file']])
+        except:
+            print "Could not change ownership of %s" % cnf['update_log_file']
+            pass
         sys.stdout = open(cnf['update_log_file'], 'a+', buffering=0)
         sys.stderr = open(cnf['update_log_file'], 'a+', buffering=0)
 
@@ -442,8 +446,12 @@ def _odoo_update_config(cnf):
             assert os.path.isfile(cnf['update_lock_file']), 'CRITICAL: Could not create update_lock_file %s' \
                                                             % cnf['update_lock_file']
         if cnf['production_server']:
-            shell(['chmod', 'o=', cnf['update_lock_file']])
-            shell(['chown', cnf['instance'] + ':' + cnf['instance'], cnf['update_lock_file']])
+            try:
+                shell(['chmod', 'o=', cnf['update_lock_file']])
+                shell(['chown', cnf['instance'] + ':' + cnf['instance'], cnf['update_lock_file']])
+            except:
+                print "Could not change rights for %s" % cnf['update_lock_file']
+                pass
 
         # Database
         cnf['latest_db_name'] = cnf['db_name'] + '_update'
@@ -835,8 +843,12 @@ def _finish_update(conf, success=str(), error=str(), restore_failed='False'):
         with open(conf['status_file'], 'w+') as writefile:
             status_ini.write(writefile)
         if conf['production_server']:
-            shell(['chmod', 'o=', conf['status_file']])
-            shell(['chown', conf['instance'] + ':' + conf['instance'], conf['status_file']])
+            try:
+                shell(['chmod', 'o=', conf['status_file']])
+                shell(['chown', conf['instance'] + ':' + conf['instance'], conf['status_file']])
+            except:
+                print "Could not change rights of %s" % conf['status_file']
+                pass
     except Exception as e:
         print 'ERROR: Could not update %s%s' % (conf['status_file'], pp(e))
 
