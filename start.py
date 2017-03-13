@@ -643,7 +643,7 @@ def _odoo_backup(conf, backup_target=None):
         print 'Backup of database at %s to %s' % (conf['db_name'], backup_target)
         cmd = ['pg_dump', '--format=c', '--no-owner',
                '--dbname=' + conf['db_url'], '--file=' + pj(backup_target, 'db.dump')]
-        shell(cmd, timeout=300)
+        shell(cmd, timeout=900)
     except Exception as e:
         raise Exception('CRITICAL: Backup of database failed!%s' % pp(e))
 
