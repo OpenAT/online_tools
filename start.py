@@ -966,7 +966,7 @@ def _odoo_update(conf):
             print '%s%s' % ('Addons to install: ', conf['addons_to_install_csv'])
             args = ['--stop-after-init', ]
             args += ['-i', conf['addons_to_install_csv']]
-            shell(odoo_server + conf['latest_startup_args'] + args, cwd=odoo_cwd, timeout=600,
+            shell(odoo_server + conf['latest_startup_args'] + args, cwd=odoo_cwd, timeout=3600,
                   user_name=conf['instance'])
     except Exception as e:
         return _finish_update(conf, error='CRITICAL: Update dry-run failed!' + pp(e))
@@ -1006,14 +1006,14 @@ def _odoo_update(conf):
             if conf['addons_to_update_csv']:
                 print '\n-- Updating the production database. (Please be patient)'
                 print '%s%s' % ('Addons to update: ', conf['addons_to_update_csv'])
-                shell(odoo_server + ['-u', conf['addons_to_update_csv']] + args, cwd=odoo_cwd, timeout=600,
+                shell(odoo_server + ['-u', conf['addons_to_update_csv']] + args, cwd=odoo_cwd, timeout=3600,
                       user_name=conf['instance'])
 
             # Install addons in productive instance
             if conf['addons_to_install_csv']:
                 print '\n-- Install addons in the production database. (Please be patient)'
                 print '%s%s' % ('Addons to install: ', conf['addons_to_install_csv'])
-                shell(odoo_server + ['-i', conf['addons_to_install_csv']] + args, cwd=odoo_cwd, timeout=600,
+                shell(odoo_server + ['-i', conf['addons_to_install_csv']] + args, cwd=odoo_cwd, timeout=3600,
                       user_name=conf['instance'])
 
             # Update successful
