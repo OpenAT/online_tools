@@ -180,19 +180,32 @@ def _git_checkout(path, commit='o8', user_name=None):
 
 @retry(Exception, tries=3)
 def _git_latest(target_path, repo, commit='o8', user_name=None, pull=False):
-    print "Get latest git repository %s -b %s in %s." % (repo, commit, target_path)
+    print "Reset and clean git repository then fetch latest data from github in %s -b %s in %s." % (repo, commit, target_path)
     # HINT: 'target_path' is the full path where the repo should be cloned to
     if os.path.exists(target_path):
         # Git repo exists already
         devnull = open(os.devnull, 'w')
         try:
-            print "Reset git repo and submodules in %s, " % target_path
+            print "Force-Clean git repo in %s, " % target_path
+            shell(['git', 'clean', '-xfdf'],
+                  cwd=target_path, timeout=120, stderr=devnull, user_name=user_name)
+            print "Force-Clean git repo submodules in %s, " % target_path
+            shell(['git', 'submodule', 'foreach', '--recursive', 'git', 'clean', '-xfdf'],
+                  cwd=target_path, timeout=120, stderr=devnull, user_name=user_name)
+            print "Hard-Reset git repo in %s, " % target_path
             shell(['git', 'reset', '--hard'],
                   cwd=target_path, timeout=120, stderr=devnull, user_name=user_name)
+            print "Hard-Reset git repo submodules in %s, " % target_path
+            shell(['git', 'submodule', 'foreach', '--recursive', 'git', 'reset', '--hard'],
+                  cwd=target_path, timeout=120, stderr=devnull, user_name=user_name)
+            print "Update and init git repo submodules in %s, " % target_path
+            shell(['git', 'submodule', 'update', '--init', '--recursive'],
+                  cwd=target_path, timeout=120, stderr=devnull, user_name=user_name)
+            print "Update git repo submodules with -f in %s, " % target_path
             shell(['git', 'submodule', 'update', '-f'],
                   cwd=target_path, timeout=120, stderr=devnull, user_name=user_name)
         except Exception as e:
-            print 'ERROR: Reset git repo and submodules failed!%s' % pp(e)
+            print 'ERROR: Reset and clean git repo and submodules failed! %s' % pp(e)
         try:
             _git_checkout(target_path, commit=commit, user_name=user_name)
         except Exception as e:
@@ -585,10 +598,11 @@ def _get_cores(conf):
     paths = list()
     paths.append(conf['core_dir'])
 
-    # get current core
+    # Update and clean current core
     if os.path.exists(conf['core_dir']) and not conf['production_server']:
         print 'WARNING: Development server found! Skipping %s clone or checkout' % conf['core_dir']
     else:
+        print "Update and clean current core %s for commit %s" % (conf['core_dir'], conf['core'])
         _git_latest(conf['core_dir'], conf['core_repo'], commit=conf['core'])
 
     # get or create latest core
@@ -599,8 +613,10 @@ def _get_cores(conf):
             else:
                 # Optimization to save time for download
                 if not os.path.exists(conf['latest_core_dir']):
+                    print "Copy current core %s to %s" % (conf['core_dir'], conf['latest_core_dir'])
                     shutil.copytree(conf['core_dir'], conf['latest_core_dir'])
                 # get latest core
+                print "Checkout, clean and reset target core %s for commit %s" % (conf['latest_core_dir'], conf['latest_core'])
                 _git_latest(conf['latest_core_dir'], conf['core_repo'], commit=conf['latest_core'])
             paths.append(conf['latest_core_dir'])
     else:
