@@ -614,7 +614,7 @@ def _get_cores(conf):
                 # Optimization to save time for download
                 if not os.path.exists(conf['latest_core_dir']):
                     print "Copy current core %s to %s" % (conf['core_dir'], conf['latest_core_dir'])
-                    shutil.copytree(conf['core_dir'], conf['latest_core_dir'])
+                    shutil.copytree(conf['core_dir'], conf['latest_core_dir'], symlinks=True)
                 # get latest core
                 print "Checkout, clean and reset target core %s for commit %s" % (conf['latest_core_dir'], conf['latest_core'])
                 _git_latest(conf['latest_core_dir'], conf['core_repo'], commit=conf['latest_core'])
