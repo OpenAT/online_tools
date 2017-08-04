@@ -133,13 +133,17 @@ def _git_get_hash(path):
 
 @retry(Exception, tries=3)
 def _git_submodule(path, user_name=None):
-    print "Git update submodule --init --recursive in %s." % path
+    print "Git update submodule --init --recursive in %s as user %s" % (path, user_name)
     assert os.path.exists(path), 'CRITICAL: Path not found: %s' % path
     try:
-        shell(['git', 'submodule', 'update', '--init', '--recursive'], cwd=path, timeout=1200,
-              user_name=user_name)
+        print "Sync submodules from .gitmodules to .git/config for git repo in %s, " % path
+        shell(['git', 'submodule', 'sync'],
+              cwd=path, timeout=120, user_name=user_name)
+        print "Update and init submodules"
+        shell(['git', 'submodule', 'update', '--init', '--recursive'],
+              cwd=path, timeout=1200, user_name=user_name)
     except Exception as e:
-        raise Exception('CRITICAL: Git submodule update %s failed!%s' % (path, pp(e)))
+        raise Exception('CRITICAL: Git submodule update %s failed! Exception: %s' % (path, pp(e)))
     return True
 
 
@@ -171,6 +175,7 @@ def _git_checkout(path, commit='o8', user_name=None):
     except Exception as e:
         print 'ERROR: git fetch failed before checkout!%s' % pp(e)
     try:
+        print "Git checkout %s" % path
         shell(['git', 'checkout', commit], cwd=path, timeout=60, user_name=user_name)
         _git_submodule(path, user_name=user_name)
     except Exception as e:
@@ -194,6 +199,9 @@ def _git_latest(target_path, repo, commit='o8', user_name=None, pull=False):
                   cwd=target_path, timeout=120, stderr=devnull, user_name=user_name)
             print "Hard-Reset git repo in %s, " % target_path
             shell(['git', 'reset', '--hard'],
+                  cwd=target_path, timeout=120, stderr=devnull, user_name=user_name)
+            print "Sync submodules from .gitmodules to .git/config for git repo in %s, " % target_path
+            shell(['git', 'submodule', 'sync'],
                   cwd=target_path, timeout=120, stderr=devnull, user_name=user_name)
             print "Hard-Reset git repo submodules in %s, " % target_path
             shell(['git', 'submodule', 'foreach', '--recursive', 'git', 'reset', '--hard'],
