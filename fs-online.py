@@ -322,8 +322,6 @@ def _odoo_access_check(instance_path, odoo_config=None):
     odoo = ServerProxy('http://'+xmlrpc_interface+'/xmlrpc/db')
 
 
-
-
 # ----------------------------
 # SCRIPT MODES
 # ----------------------------
@@ -482,7 +480,7 @@ def start(instance_path, cmd_args=list()):
     # Multi-Threaded odoo start
     if oc['workers'] != '0':
         logging.warn('Gevented mode enabled because workers = %s' % oc['workers'])
-        assert not sys.gettrace(), 'Multi threaded mode is not supported when debugging the script!'
+        assert not sys.gettrace(), 'Multi threaded mode is not recommended for debugging!'
         import gevent.monkey
         gevent.monkey.patch_all()
         import psycogreen.gevent
