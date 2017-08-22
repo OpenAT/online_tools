@@ -981,7 +981,7 @@ def _odoo_update(conf):
             print '%s%s' % ('Addons to update: ', conf['addons_to_update_csv'])
             args = ['--stop-after-init', ]
             args += ['-u', conf['addons_to_update_csv']]
-            shell(odoo_server + conf['latest_startup_args'] + args, cwd=odoo_cwd, timeout=600,
+            shell(odoo_server + conf['latest_startup_args'] + args, cwd=odoo_cwd, timeout=3600,
                   user_name=conf['instance'])
 
         # Install addons in the dry-run instance

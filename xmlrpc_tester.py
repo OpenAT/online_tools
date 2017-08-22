@@ -4,8 +4,8 @@ import xmlrpclib
 
 
 # Connection parameters
-url = 'http://localhost:8069'
-db = 'demo'
+url = 'http://192.168.37.112:20200'
+db = 'bird'
 username = 'admin'
 password = 'admin'
 
@@ -72,11 +72,57 @@ sosync_user_id = models.execute_kw(db, uid, password, 'res.users', 'search',
 print sosync_user_id
 
 # Update the sosync user password
-if sosync_user_id:
-    print models.execute_kw(db, uid, password, 'res.users', 'write',
-                            [sosync_user_id, {'password': 'bob'}],                  # Positional args of method write
-                            )
+# if sosync_user_id:
+#     print models.execute_kw(db, uid, password, 'res.users', 'write',
+#                             [sosync_user_id, {'password': 'bob'}],                  # Positional args of method write
+#                             )
 
-uninstall = {"jsonrpc": "2.0", "method": "call", "params": {"model": "base.module.upgrade", "method": "create", "args": [
-    {}], "kwargs": {"context": {"lang": "en_US", "tz": false, "uid": 8, "params": {"action": 37}, "active_model": "ir.module.module", "active_id": 224, "active_ids": [
-    224], "search_disable_custom_filters": true}}}, "id": 542860126}
+# uninstall = {"jsonrpc": "2.0", "method": "call", "params": {"model": "base.module.upgrade", "method": "create", "args": [
+#     {}], "kwargs": {"context": {"lang": "en_US", "tz": false, "uid": 8, "params": {"action": 37}, "active_model": "ir.module.module", "active_id": 224, "active_ids": [
+#     224], "search_disable_custom_filters": true}}}, "id": 542860126}
+
+
+
+# Create a res.partner
+
+print models.execute_kw(db,
+                        uid,
+                        password,
+                        'res.partner',
+                        'create',
+                        [
+                            {
+                                "anrede_individuell": "",
+                                # "birthdate_web": "29.01.1949 00:00:00",
+
+                                #"BPKForcedBirthdate": "",
+                                #"BPKForcedFirstname": "",
+                                #"BPKForcedLastname": "",
+
+                                "city": "Fehrin",
+                                "company_name_web": "",
+
+                                # "create_date": "07.03.2007 00:00:00",
+
+                                "donation_deduction_optout_web": False,
+                                "donation_receipt_web": False,
+                                "email": "mike@test.com",
+                                "firstname": "Klaus TESTUSER",
+
+                                #"fstoken_update": "",
+                                #"fstoken_update_date": "",
+
+                                "gender": "male",
+                                "is_company": False,
+                                "lastname": "Pongratz",
+                                "name_zwei": "",
+                                "newsletter_web": False,
+                                "street": "Hauptplatz",
+                                "street_number_web": "3",
+                                "street2": "",
+                                "title_web": "Mag.",
+                                "zip": "8350",
+                            }
+                        ],
+                        #{'context': {'lang': 'de_DE'}},
+                        )
