@@ -1156,4 +1156,10 @@ if __name__ == "__main__":
         # Load Openerp
         odoo_start = pj(sys.path[0], "odoo.py") + " " + " ".join(sys.argv[1:])
         print "\nStart: %s\n" % odoo_start
-        os.system(odoo_start)
+
+        # This is no option because it would create a new process that can not be stopped by the init script
+        # os.system(odoo_start)
+
+        # ATTENTION: To make this work openerp-gevent must be in some path that python can load!
+        import odoo
+        odoo.main()
