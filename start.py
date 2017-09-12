@@ -1136,42 +1136,24 @@ if __name__ == "__main__":
         if '--update' in sys.argv:
             sys.argv.remove('--update')
 
+        # Set Startup Args (--addons-path for regular start or dev defaults)
+        sys.argv += odoo_config['startup_args']
+
         # Change path to correct core and folder odoo
         sys.path[0] = sys.argv[0] = pj(odoo_config['core_dir'], 'odoo')
         os.chdir(sys.path[0])
         print 'sys.path[0] and sys.argv[0] set to: %s' % sys.path[0]
         print 'Working directory set to: %s' % os.getcwd()
+        print "PYTHONPATH: %s" % os.environ.get("PYTHONPATH", "")
+        print "WORKING_DIRECTORY: %s" % os.environ.get("WORKING_DIRECTORY", "")
 
-        # Set Startup Args (--addons-path for regular start or dev defaults)
-        sys.argv += odoo_config['startup_args']
-        print "Start odoo with sys.argv: %s" % sys.argv
+        # Disable evented mode for debugging
+        # if sys.gettrace() != None or int(odoo_config['workers']) <= 1:
+        #     # we are in debug mode ensure that odoo don't try to start gevent
+        #     print 'INFO: Evented mode disabled! workers = 0 or sys.gettrace() found.\n'
+        #     openerp.evented = False
 
-        # for gevented mode
-        if odoo_config['workers'] != str(0):
-            print "INFO: Evented mode enabled! workers: %s" % odoo_config['workers']
-            import gevent.monkey
-
-            gevent.monkey.patch_all()
-            import psycogreen.gevent
-
-            psycogreen.gevent.patch_psycopg()
-
-        # Load openerp
-        if sys.gettrace() or odoo_config['workers'] == str(0):
-            # we are in debug mode ensure that odoo don't try to start in gevented mode
-            print 'INFO: Evented mode disabled! workers = 0 or sys.gettrace() found.\n'
-            import openerp
-
-            openerp.evented = False
-        else:
-            print "WARNING: Evented mode enabled! workers: %s\n" % odoo_config['workers']
-            import gevent.monkey
-
-            gevent.monkey.patch_all()
-            import psycogreen.gevent
-
-            psycogreen.gevent.patch_psycopg()
-            import openerp
-
-        # Start odoo
-        openerp.cli.main()
+        # Load Openerp
+        odoo_start = pj(sys.path[0], "odoo.py") + " " + " ".join(sys.argv[1:])
+        print "\nStart: %s\n" % odoo_start
+        os.system(odoo_start)
