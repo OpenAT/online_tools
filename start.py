@@ -623,6 +623,8 @@ def _get_cores(conf):
 
             else:
                 # Wait for any other running core copy to finish
+                # TODO: do not check this if this instance created the core_copy_lock file
+                #       (if first line matches with this instance name)
                 waitcounter = 0
                 while os.path.exists(conf['latest_core_dir']) and os.path.isfile(core_copy_lock):
                     assert waitcounter <= 3, "Core copy not finished after 3 minutes!"
