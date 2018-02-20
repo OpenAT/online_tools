@@ -13,6 +13,9 @@ import urllib2
 import difflib
 from functools import wraps
 import datetime
+import smtplib
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
 
 
 def retry(ExceptionToCheck, tries=4, delay=3, backoff=2, logger=None):
@@ -960,8 +963,34 @@ def _finish_update(conf, success=str(), error=str(), restore_failed='False'):
         print "%s\n---------- UPDATE DONE! ----------" % success
     if error:
         print "%s\n---------- ERROR: UPDATE FAILED! ----------" % error
+        # TODO: Send Info E-Mail to admin@datadialog.net
+
+    # Send Info E-Mail to admin@datadialog.net
+    try:
+        status = 'FAILED' if not success else 'DONE'
+        fromaddr = "admin@datadialog.net"
+        toaddr = "admin@datadialog.net"
+        print "Sending status e-mail to %s" % toaddr
+
+        msg = MIMEMultipart()
+        msg['From'] = fromaddr
+        msg['To'] = toaddr
+        msg['Subject'] = "%s: Instance Update %s for instance %s" \
+                         "" % (conf['instance'].upper(), status, conf['instance'])
+        body = "Instance Update %s for %s to FS-Online release %s!" % (status, conf['instance'], conf['latest_core'])
+        msg.attach(MIMEText(body, 'plain'))
+
+        server = smtplib.SMTP('192.168.37.1', 587)
+        # server.starttls()
+        # server.login(fromaddr, "YOUR PASSWORD")
+        text = msg.as_string()
+        server.sendmail(fromaddr, toaddr, text)
+        server.quit()
+    except Exception as e:
+        print "WARNING: Could not send status e-mail!:\n%s" % repr(e)
 
     # Close conf['update_log_file']
+    print "========================================================================================================\n\n"
     if conf['production_server']:
         sys.stderr.close()
         sys.stdout.close()
