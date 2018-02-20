@@ -980,7 +980,7 @@ def _finish_update(conf, success=str(), error=str(), restore_failed='False'):
         body = "Instance Update %s for %s to FS-Online release %s!" % (status, conf['instance'], conf['latest_core'])
         msg.attach(MIMEText(body, 'plain'))
 
-        server = smtplib.SMTP('192.168.37.1', 587)
+        server = smtplib.SMTP('192.168.37.1', 25)
         # server.starttls()
         # server.login(fromaddr, "YOUR PASSWORD")
         text = msg.as_string()
