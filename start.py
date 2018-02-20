@@ -652,7 +652,7 @@ def _get_cores(conf):
                         instance_cfg = dict(instance_cfg.items('options'))
                         needed_core = instance_cfg.get('core')
                         if needed_core:
-                            needed_cores += [needed_core]
+                            needed_cores += ['online_' + needed_core]
                 print "Cores found in instance.ini files: %s" % needed_cores
                 # Get a list of available cores without a core_copy_lock file
                 available_cores = [x for x in os.listdir(root_dir)
@@ -676,7 +676,8 @@ def _get_cores(conf):
                 print "%sGB free disk space in %s" % (free_gbyte, root_dir)
 
                 # Optimization to save time for download
-                if not os.path.exists(conf['latest_core_dir']):
+                lcd = conf['latest_core_dir']
+                if not os.path.exists(lcd) or not os.path.exists(pj(lcd, '.git')):
                     print "Copy current core %s to %s" % (conf['core_dir'], conf['latest_core_dir'])
                     shutil.copytree(conf['core_dir'], conf['latest_core_dir'], symlinks=True)
 
