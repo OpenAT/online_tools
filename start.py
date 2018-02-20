@@ -600,7 +600,7 @@ def _odoo_update_config(cnf):
     return cnf
 
 
-@retry(Exception, tries=4)
+@retry(Exception, tries=3)
 def _get_cores(conf):
     print "\n---- GET CORES (should be run as a root user)"
     paths = list()
@@ -625,7 +625,7 @@ def _get_cores(conf):
                 # Wait for any other running core copy to finish
                 waitcounter = 0
                 while os.path.exists(conf['latest_core_dir']) and os.path.isfile(core_copy_lock):
-                    assert waitcounter <= 15, "Core copy not finished after 15 minutes!"
+                    assert waitcounter <= 5, "Core copy not finished after 5 minutes!"
                     print "Core is already in copy by another update! Waiting 60 seconds before next check"
                     sleep(60)
                     waitcounter += 1
@@ -635,7 +635,7 @@ def _get_cores(conf):
                 if not os.path.exists(conf['latest_core_dir']):
                     os.makedirs(conf['latest_core_dir'])
                 with open(core_copy_lock, 'w') as ccl_handle:
-                    ccl_handle.write(conf['instance'] + '\n' + datetime.datetime.now().isoformat())
+                    ccl_handle.write(conf['instance'] + '\n' + datetime.datetime.now().isoformat() + '\n')
                 assert os.path.isfile(core_copy_lock), 'CRITICAL: Could not create core_copy_lock file %s' \
                                                        '' % core_copy_lock
 
@@ -686,9 +686,12 @@ def _get_cores(conf):
                 _git_latest(conf['latest_core_dir'], conf['core_repo'], commit=conf['latest_core'])
 
                 # Delete the core_copy_lock file
-                print "Core successfully created! Deleting file core_copy.lock at %s" % core_copy_lock
+                print "Core successfully created! "
                 if os.path.isfile(core_copy_lock):
+                    print "Deleting file core_copy.lock at %s" % core_copy_lock
                     os.remove(core_copy_lock)
+                else:
+                    print "WARNING: File core_copy.lock was already deleted at %s" % core_copy_lock
 
             paths.append(conf['latest_core_dir'])
     else:
@@ -976,8 +979,8 @@ def _finish_update(conf, success=str(), error=str(), restore_failed='False'):
         msg = MIMEMultipart()
         msg['From'] = fromaddr
         msg['To'] = toaddr
-        msg['Subject'] = "%s: Instance Update %s for instance %s" \
-                         "" % (conf['instance'].upper(), status, conf['instance'])
+        msg['Subject'] = "INSTANCE %s: Instance Update to %s %s !" \
+                         "" % (conf['instance'].upper(), conf['latest_core'], status)
         body = "Instance Update %s for %s to FS-Online release %s!" % (status, conf['instance'], conf['latest_core'])
         msg.attach(MIMEText(body, 'plain'))
 
