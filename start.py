@@ -949,7 +949,15 @@ def _finish_update(conf, success=str(), error=str(), restore_failed='False'):
 
     # Print final message
     if success:
-        print "%s\n---------- UDPATE DONE! ----------" % success
+        # Start the sosync v1 service again
+        sosync_v1_service = conf['instance'] + '_sosync'
+        print "\nStart sosync v1 service %s if available." % sosync_v1_service
+        try:
+            _service_control(sosync_v1_service, running=True)
+        except Exception as e:
+            print "Sosync v1 service not available or it could not be started!\n%s" % repr(e)
+
+        print "%s\n---------- UPDATE DONE! ----------" % success
     if error:
         print "%s\n---------- ERROR: UPDATE FAILED! ----------" % error
 
@@ -1079,6 +1087,14 @@ def _odoo_update(conf):
     print "\n-- Run the final update on production instance. Service will be stopped!"
     if conf['production_server']:
         try:
+            # Stop sosync1 service if availabel
+            sosync_v1_service = conf['instance'] + '_sosync'
+            print "\nStop sosync v1 service %s if available." % sosync_v1_service
+            try:
+                _service_control(sosync_v1_service, running=False)
+            except Exception as e:
+                print "Sosync v1 service not available or it could not be stopped!\n%s" % repr(e)
+
             # Stop service
             print "\nStop service %s." % conf['instance']
             if not _service_control(conf['instance'], running=False):
