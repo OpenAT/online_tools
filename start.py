@@ -600,7 +600,7 @@ def _odoo_update_config(cnf):
     return cnf
 
 
-@retry(Exception, tries=3)
+@retry(Exception, tries=2)
 def _get_cores(conf):
     print "\n---- GET CORES (should be run as a root user)"
     paths = list()
@@ -625,7 +625,7 @@ def _get_cores(conf):
                 # Wait for any other running core copy to finish
                 waitcounter = 0
                 while os.path.exists(conf['latest_core_dir']) and os.path.isfile(core_copy_lock):
-                    assert waitcounter <= 5, "Core copy not finished after 5 minutes!"
+                    assert waitcounter <= 3, "Core copy not finished after 3 minutes!"
                     print "Core is already in copy by another update! Waiting 60 seconds before next check"
                     sleep(60)
                     waitcounter += 1
@@ -680,7 +680,10 @@ def _get_cores(conf):
                 if not os.path.exists(lcd) or not os.path.exists(pj(lcd, '.git')):
                     print "Copy current core %s to %s" % (conf['core_dir'], conf['latest_core_dir'])
                     #shutil.copytree(conf['core_dir'], conf['latest_core_dir'], symlinks=True)
-                    shell(['cp', '-rpf', conf['core_dir'], conf['latest_core_dir']])
+
+                    # ATTENTION: "/." is necessary to copy also all hidden files and to not create the source folder
+                    #            in the target directory!
+                    shell(['cp', '-rpf', conf['core_dir']+'/.', conf['latest_core_dir']])
 
                 # get latest core
                 print "Checkout, clean and reset target core %s for commit %s" % (conf['latest_core_dir'], conf['latest_core'])
