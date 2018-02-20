@@ -982,12 +982,15 @@ def _finish_update(conf, success=str(), error=str(), restore_failed='False'):
         toaddr = "admin@datadialog.net"
         print "Sending status e-mail to %s" % toaddr
 
+        latest_core = conf.get('latest_core', '') if conf else ''
+        instance = conf.get('instance', '') if conf else ''
+
         msg = MIMEMultipart()
         msg['From'] = fromaddr
         msg['To'] = toaddr
         msg['Subject'] = "INSTANCE %s: Instance Update to %s %s !" \
-                         "" % (conf['instance'].upper(), conf['latest_core'], status)
-        body = "Instance Update %s for %s to FS-Online release %s!" % (status, conf['instance'], conf['latest_core'])
+                         "" % (instance.upper(), latest_core, status)
+        body = "Instance Update %s for %s to FS-Online release %s!" % (status, instance, latest_core)
         msg.attach(MIMEText(body, 'plain'))
 
         server = smtplib.SMTP('192.168.37.1', 25)
