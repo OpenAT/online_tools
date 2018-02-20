@@ -7,6 +7,8 @@
 # ATTENTION: be aware that for most db.py methods the fist argument is always the SUPER_PASSWORD
 #            look at: passwd = params[0] and params = params[1:]
 import sys
+import zipfile
+from requests import Session, codes
 import argparse
 import base64
 from xmlrpclib import ServerProxy
@@ -35,22 +37,51 @@ def dupdb(args):
 
 
 # Backup DB
-# service/db.py:   def exp_dump(db_name):
+# service/db.py:   def exp_dump(db_name) -> NOT USED ANYMORE BECAUSE OF MEMORY PROBLEMS!
 def backup(args):
-    with open(args.filedump, 'w') as f:
-        f.write(server.dump(args.superpwd, args.database).decode('base64'))
-        if f:
-            print 'Database Backup File Name: %s' % f.name
-            sys.exit(0)
-        else:
-            sys.exit(2)
+    # Request data
+    url = "http://%s/web/database/backup" % args.hostserver
+    payload = {'backup_db': args.database,
+               'backup_pwd': args.superpwd,
+               'token': ''}
+    backupfile = args.filedump
+
+    # Backup request
+    # HINT: must be done as a POST request with stream=True to avoid memory overflows
+    print 'Request database backup for db %s at %s' % (args.database, url)
+    session = Session()
+    session.verify = True
+    db_backup = session.post(url, data=payload, stream=True)
+    if not db_backup or db_backup.status_code != codes.ok:
+        print 'ERROR: Database backup for db %s FAILED!' % args.database
+        sys.exit(2)
+
+    # Write content to file
+    print 'Write Database Backup to file %s' % backupfile
+    with open(backupfile, 'wb') as bf:
+        for chunk in db_backup.iter_content(chunk_size=128):
+            bf.write(chunk)
+
+    # Verify zip file
+    try:
+        backupzip = zipfile.ZipFile(backupfile)
+        failed = backupzip.testzip()
+        if failed is not None:
+            raise Exception
+    except Exception as e:
+        print "ERROR: Backup zip file validation failed!"
+        sys.exit(2)
+
+    # Backup done
+    print 'Database backup for db %s to %s finished successfully!' % (args.database, backupfile)
+    sys.exit(0)
 
 
 # Restore DB
 # service/db.py:   def exp_restore(db_name, data, copy=False):
 def restore(args):
     print 'Restore Database: %s' % args.database
-    with open(args.filedump) as dump_file:
+    with open(args.filedump, 'rb') as dump_file:
         if server.restore(args.superpwd, args.database, base64.b64encode(dump_file.read())):
             sys.exit(0)
         else:
