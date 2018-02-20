@@ -1,9 +1,4 @@
 #!/usr/bin/env python
-
-# TODO: Make sure every commit betwenn latest commit and current commit is used for update since we have to make
-#       every intermediate update also!
-# HINT: Should be no real problem now since every push triggers an update
-
 import sys
 import os
 from os.path import join as pj
@@ -17,6 +12,7 @@ from time import sleep
 import urllib2
 import difflib
 from functools import wraps
+import datetime
 
 
 def retry(ExceptionToCheck, tries=4, delay=3, backoff=2, logger=None):
@@ -441,18 +437,18 @@ def _odoo_update_config(cnf):
         assert os.path.exists(pj(cnf['instance_dir'], 'update')), 'CRITICAL: "update" Directory missing!'
         cnf['latest_instance'] = cnf['instance'] + '_update'
 
-        # Backup (folder for his run of the script)
+        # Backup path and filename
         cnf['backup'] = pj(cnf['backup_dir'], cnf['db_name'] + '-pre-update_backup-' + cnf['start_time'])
 
         # Check if an update is already running
         cnf['update_lock_file'] = pj(cnf['instance_dir'], 'update.lock')
         counter = 0
         while os.path.isfile(cnf['update_lock_file']):
-            print "WARNING: Concurrent update running. Recheck in 10 seconds."
-            sleep(10)
+            print "WARNING: Concurrent update running. Recheck in 60 seconds."
+            sleep(60)
             counter += 1
-            assert counter < 60, 'CRITICAL: Concurrent update still running after 10 min! Please check %s .' \
-                                 % cnf['update_lock_file']
+            assert counter <= 20, 'CRITICAL: Concurrent update still running after 20 min! Please check %s .' \
+                                  '' % cnf['update_lock_file']
 
         # Stop update if ...
         if cnf['update_failed'] != 'False' or cnf['no_update'] != 'False' \
@@ -527,7 +523,8 @@ def _odoo_update_config(cnf):
         except Exception as e:
             _finish_update(cnf, error="CRITICAL: Could not get cores!" + pp(e))
 
-        # latest core.ini (core.ini is optional!)
+        # latest core.ini
+        # ATTENTION: core.ini is optional!
         core_update = dict()
         if os.path.exists(pj(cnf['latest_core_dir'], 'core.ini')):
             try:
@@ -605,6 +602,7 @@ def _get_cores(conf):
     print "\n---- GET CORES (should be run as a root user)"
     paths = list()
     paths.append(conf['core_dir'])
+    core_copy_lock = pj(conf['latest_core_dir'], 'core_copy.lock')
 
     # Update and clean current core
     if os.path.exists(conf['core_dir']) and not conf['production_server']:
@@ -616,16 +614,78 @@ def _get_cores(conf):
     # get or create latest core
     if conf.get('latest_core_dir', False):
         if conf.get('latest_core_dir') != conf['core_dir']:
+
             if os.path.exists(conf['latest_core_dir']) and not conf['production_server']:
                 print 'WARNING: Development server found! Skipping %s clone or checkout' % conf['latest_core_dir']
+
             else:
+                # Wait for any other running core copy to finish
+                waitcounter = 0
+                while os.path.exists(conf['latest_core_dir']) and os.path.isfile(core_copy_lock):
+                    assert waitcounter <= 15, "Core copy not finished after 15 minutes!"
+                    print "Core is already in copy by another update! Waiting 60 seconds before next check"
+                    sleep(60)
+                    waitcounter += 1
+
+                # Create the latest_core_dir folder and the core_copy_lock file inside
+                print "Create file core_copy.lock at %s" % core_copy_lock
+                if not os.path.exists(conf['latest_core_dir']):
+                    os.makedirs(conf['latest_core_dir'])
+                with open(core_copy_lock, 'w') as ccl_handle:
+                    ccl_handle.write(conf['instance'] + '\n' + datetime.datetime.now().isoformat())
+                assert os.path.isfile(core_copy_lock), 'CRITICAL: Could not create core_copy_lock file %s' \
+                                                       '' % core_copy_lock
+
+                # Remove old and unused cores
+                # ATTENTION: We already downloaded the latest instance.ini before we reach this point ;)
+                # Search for all instance.ini files and extract the cores
+                print "Remove unused cores"
+                root_dir = conf['root_dir']
+                needed_cores = []
+                for root, subFolders, files in os.walk(root_dir):
+                    if 'instance.ini' in files:
+                        instance_cfg = ConfigParser.SafeConfigParser()
+                        instance_cfg.read(pj(root, 'instance.ini'))
+                        instance_cfg = dict(instance_cfg.items('options'))
+                        needed_core = instance_cfg.get('core')
+                        if needed_core:
+                            needed_cores += [needed_core]
+                print "Cores found in instance.ini files: %s" % needed_cores
+                # Get a list of available cores without a core_copy_lock file
+                available_cores = [x for x in os.listdir(root_dir)
+                                   if x.startswith('online_o8') and os.path.isdir(pj(root_dir, x))
+                                   and not os.path.isfile(pj(root_dir, x, 'core_copy.lock'))]
+                print "Cores found in %s: %s" % (root_dir, available_cores)
+                # Find unused cores
+                unused_cores = set(available_cores) - set(needed_cores)
+                unused_cores = [pj(root_dir, c) for c in unused_cores]
+                print "Unused cores found that can be removed: %s" % unused_cores
+                for unused_core in unused_cores:
+                    print "TODO :) Removing unused core %s" % unused_core
+                    # TODO: Really remove the unused cores
+                    # shutil.rmtree(unused_core)
+
+                # Check that the free space for /opt/online is at least 2GB
+                statvfs = os.statvfs(root_dir)
+                free_bytes = statvfs.f_frsize * statvfs.f_bavail
+                free_gbyte = free_bytes / 1000000000
+                assert free_gbyte >= 2, "CRITICAL: Free disk space is less than 2 GB in %s" % root_dir
+                print "%sGB free disk space in %s" % (free_gbyte, root_dir)
+
                 # Optimization to save time for download
                 if not os.path.exists(conf['latest_core_dir']):
                     print "Copy current core %s to %s" % (conf['core_dir'], conf['latest_core_dir'])
                     shutil.copytree(conf['core_dir'], conf['latest_core_dir'], symlinks=True)
+
                 # get latest core
                 print "Checkout, clean and reset target core %s for commit %s" % (conf['latest_core_dir'], conf['latest_core'])
                 _git_latest(conf['latest_core_dir'], conf['core_repo'], commit=conf['latest_core'])
+
+                # Delete the core_copy_lock file
+                print "Core successfully created! Deleting file core_copy.lock at %s" % core_copy_lock
+                if os.path.isfile(core_copy_lock):
+                    os.remove(core_copy_lock)
+
             paths.append(conf['latest_core_dir'])
     else:
         print "ERROR: latest_core_dir not in configuration!"
@@ -956,7 +1016,10 @@ def _odoo_update(conf):
         _finish_update(conf, error='CRITICAL: Backup before update failed. Skipping update.' + pp(e))
         return False
 
-    # TODO: Run language Updates
+    # ----
+    # TODO: Run language Updates?
+    # ----
+
     # 3.1) Dry-Run the update
     print "-- Dry-Run the update."
     try:
@@ -1008,7 +1071,10 @@ def _odoo_update(conf):
     # else:
     #     print "WARNING: Development server found! Compare Webpages skipped!"
 
-    # TODO: Run language Updates
+    # ---
+    # TODO: Run language Updates?
+    # ---
+
     # 3.2) Update of production instance
     print "\n-- Run the final update on production instance. Service will be stopped!"
     if conf['production_server']:
