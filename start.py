@@ -679,7 +679,8 @@ def _get_cores(conf):
                 lcd = conf['latest_core_dir']
                 if not os.path.exists(lcd) or not os.path.exists(pj(lcd, '.git')):
                     print "Copy current core %s to %s" % (conf['core_dir'], conf['latest_core_dir'])
-                    shutil.copytree(conf['core_dir'], conf['latest_core_dir'], symlinks=True)
+                    #shutil.copytree(conf['core_dir'], conf['latest_core_dir'], symlinks=True)
+                    shell(['cp', '-rpf', conf['core_dir'], conf['latest_core_dir']])
 
                 # get latest core
                 print "Checkout, clean and reset target core %s for commit %s" % (conf['latest_core_dir'], conf['latest_core'])
