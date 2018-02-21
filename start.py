@@ -669,9 +669,8 @@ def _get_cores(conf):
                 unused_cores = [pj(root_dir, c) for c in unused_cores]
                 print "Unused cores found that can be removed: %s" % unused_cores
                 for unused_core in unused_cores:
-                    print "TODO :) Removing unused core %s" % unused_core
-                    # TODO: Really remove the unused cores
-                    # shutil.rmtree(unused_core)
+                    print "ATTENTION: !!! Removing unused core %s" % unused_core
+                    shutil.rmtree(unused_core)
 
                 # Check that the free space for /opt/online is at least 2GB
                 statvfs = os.statvfs(root_dir)
