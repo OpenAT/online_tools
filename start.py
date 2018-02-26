@@ -605,135 +605,144 @@ def _odoo_update_config(cnf):
 
 @retry(Exception, tries=2)
 def _get_cores(conf):
+
+    def _set_rights(configuration, all_paths):
+        if configuration['production_server']:
+            for path in all_paths:
+                path = str(path)
+                if configuration['root_dir'] in path:
+                    try:
+                        print "Set correct user and rights for core in path %s" % path
+                        shell(['chown', '-R', 'root:root', path], cwd=path, timeout=60)
+                        # Make sure others can read(use) the core and its files too
+                        # HINT: This should be ok already in the core in Github!
+                        shell(['chmod', '-R', 'o=rX', path], cwd=path, timeout=60)
+                    except (Exception, subprocess32.TimeoutExpired) as e:
+                        print 'ERROR: Set user and rights failed! Retcode %s !' % pp(e)
+
     print "\n---- GET CORES (should be run as a root user)"
     paths = list()
     paths.append(conf['core_dir'])
     core_copy_lock = pj(conf['latest_core_dir'], 'core_copy.lock')
 
-    # Update and clean current core
-    if os.path.exists(conf['core_dir']) and not conf['production_server']:
-        print 'WARNING: Development server found! Skipping %s clone or checkout' % conf['core_dir']
-    else:
-        print "Update and clean current core %s for commit %s" % (conf['core_dir'], conf['core'])
+    # Get current core if needed
+    if not os.path.exists(conf['core_dir']):
+        print "Create current core %s for commit %s" % (conf['core_dir'], conf['core'])
         _git_latest(conf['core_dir'], conf['core_repo'], commit=conf['core'])
 
-    # get or create latest core
-    if conf.get('latest_core_dir', False):
-        if conf.get('latest_core_dir') != conf['core_dir']:
-
-            if os.path.exists(conf['latest_core_dir']) and not conf['production_server']:
-                print 'WARNING: Development server found! Skipping %s clone or checkout' % conf['latest_core_dir']
-
-            else:
-                # Wait for any other running core copy to finish
-                # TODO: do not check this if this instance created the core_copy_lock file
-                #       (if first line matches with this instance name)
-                waitcounter = 0
-                while os.path.exists(conf['latest_core_dir']) and os.path.isfile(core_copy_lock):
-                    assert waitcounter <= 3, "Core copy not finished after 3 minutes!"
-                    print "Core is already in copy by another update! Waiting 60 seconds before next check"
-                    sleep(60)
-                    waitcounter += 1
-
-                # Remove old and unused cores
-                # ATTENTION: We already downloaded the latest instance.ini before we reach this point ;)
-                # Search for all instance.ini files and extract the cores
-                print "Remove unused cores"
-                root_dir = conf['root_dir']
-                needed_cores = []
-                for root, subFolders, files in os.walk(root_dir):
-                    if 'instance.ini' in files:
-                        instance_cfg = ConfigParser.SafeConfigParser()
-                        instance_cfg.read(pj(root, 'instance.ini'))
-                        instance_cfg = dict(instance_cfg.items('options'))
-                        needed_core = instance_cfg.get('core')
-                        if needed_core:
-                            needed_cores += ['online_' + needed_core]
-                print "Cores found in instance.ini files: %s" % needed_cores
-                # Get a list of available cores without a core_copy_lock file
-                available_cores = [x for x in os.listdir(root_dir)
-                                   if x.startswith('online_o8') and os.path.isdir(pj(root_dir, x))
-                                   and not os.path.isfile(pj(root_dir, x, 'core_copy.lock'))]
-                print "Cores found in %s: %s" % (root_dir, available_cores)
-                # Find unused cores
-                unused_cores = set(available_cores) - set(needed_cores)
-                unused_cores = [pj(root_dir, c) for c in unused_cores]
-                print "Unused cores found that can be removed: %s" % unused_cores
-                for unused_core in unused_cores:
-                    print "ATTENTION: !!! Removing unused core %s" % unused_core
-                    shutil.rmtree(unused_core)
-
-                # Check if the core already exists and seems to be ok: If so return true and skipp other checks
-                print "Check if we can skipp the core update"
-                if os.path.exists(conf['latest_core_dir']) and not os.path.isfile(core_copy_lock):
-                    if os.path.exists(pj(conf['latest_core_dir'], '.git')):
-                        # Check that the latest_core_dir size is at least 600 MB
-                        repo_size = shell(['du', '-sm', conf['latest_core_dir']])
-                        print "Latest repository size in MB: %s" % repo_size
-                        try:
-                            repo_size = int(repo_size.split()[0])
-                            if repo_size > 600:
-                                print "Latest core repository seems to exists! Skipping Core Update!"
-                                return True
-                        except Exception as e:
-                            print "WARNING: Could not determine size of latest repository folder %s!\n%s" \
-                                  "" % (conf['latest_core_dir'], repr(e))
-
-                # Check that the free space for /opt/online is at least 2GB
-                statvfs = os.statvfs(root_dir)
-                free_bytes = statvfs.f_frsize * statvfs.f_bavail
-                free_gbyte = free_bytes / 1000000000
-                assert free_gbyte >= 2, "CRITICAL: Free disk space is less than 2 GB in %s" % root_dir
-                print "%sGB free disk space in %s" % (free_gbyte, root_dir)
-
-                # Create the latest_core_dir folder
-                print "Create file core_copy.lock at %s" % core_copy_lock
-                if not os.path.exists(conf['latest_core_dir']):
-                    os.makedirs(conf['latest_core_dir'])
-
-                # Create the core_copy_lock file
-                with open(core_copy_lock, 'w') as ccl_handle:
-                    ccl_handle.write(conf['instance'] + '\n' + datetime.datetime.now().isoformat() + '\n')
-                assert os.path.isfile(core_copy_lock), 'CRITICAL: Could not create core_copy_lock file %s' \
-                                                       '' % core_copy_lock
-
-                # Optimization to save the "download from github" time
-                lcd = conf['latest_core_dir']
-                if not os.path.exists(lcd) or not os.path.exists(pj(lcd, '.git')):
-                    print "Copy current core %s to %s" % (conf['core_dir'], conf['latest_core_dir'])
-                    # ATTENTION: "/." is necessary to copy also all hidden files and to not create the source folder
-                    #            in the target directory!
-                    shell(['cp', '-rpf', conf['core_dir']+'/.', conf['latest_core_dir']])
-
-                # get latest core
-                print "Checkout, clean and reset target core %s for commit %s" % (conf['latest_core_dir'], conf['latest_core'])
-                _git_latest(conf['latest_core_dir'], conf['core_repo'], commit=conf['latest_core'])
-
-                # Delete the core_copy_lock file
-                print "Core successfully created! "
-                if os.path.isfile(core_copy_lock):
-                    print "Deleting file core_copy.lock at %s" % core_copy_lock
-                    os.remove(core_copy_lock)
-                else:
-                    print "WARNING: File core_copy.lock was already deleted at %s" % core_copy_lock
-
-            paths.append(conf['latest_core_dir'])
+    if not conf.get('latest_core_dir'):
+        print "WARNING: latest_core_dir not in configuration!"
     else:
-        print "ERROR: latest_core_dir not in configuration!"
+        paths.append(conf['latest_core_dir'])
+
+    # Get latest FS-Online core
+    if conf.get('latest_core_dir') and conf.get('latest_core_dir') != conf['core_dir']:
+
+        if os.path.exists(conf['latest_core_dir']) and not conf['production_server']:
+            print 'WARNING: Development server found! Skipping %s clone or checkout' % conf['latest_core_dir']
+
+        else:
+            # TODO: Delete the core_copy_lock file if it was created by this instance (first line inside of file)
+
+            # Wait for any other running core copy to finish
+            waitcounter = 0
+            while os.path.exists(conf['latest_core_dir']) and os.path.isfile(core_copy_lock):
+                assert waitcounter <= 3, "Core copy not finished after 3 minutes!"
+                print "Core is already in copy by another update! Waiting 60 seconds before next check"
+                sleep(60)
+                waitcounter += 1
+
+            # Remove old and unused cores
+            # ATTENTION: We already downloaded the latest instance.ini before we reach this point ;)
+            # Search for all instance.ini files and extract the cores
+            print "Remove unused cores"
+            root_dir = conf['root_dir']
+            needed_cores = []
+            for root, subFolders, files in os.walk(root_dir):
+                if 'instance.ini' in files:
+                    instance_cfg = ConfigParser.SafeConfigParser()
+                    instance_cfg.read(pj(root, 'instance.ini'))
+                    instance_cfg = dict(instance_cfg.items('options'))
+                    needed_core = instance_cfg.get('core')
+                    if needed_core:
+                        needed_cores += ['online_' + needed_core]
+            print "Cores found in instance.ini files: %s" % needed_cores
+            # Get a list of available cores without a core_copy_lock file
+            available_cores = [x for x in os.listdir(root_dir)
+                               if x.startswith('online_o8') and os.path.isdir(pj(root_dir, x))
+                               and not os.path.isfile(pj(root_dir, x, 'core_copy.lock'))]
+            print "Cores found in %s: %s" % (root_dir, available_cores)
+            # Find unused cores
+            unused_cores = set(available_cores) - set(needed_cores)
+            unused_cores = [pj(root_dir, c) for c in unused_cores]
+            print "Unused cores found that can be removed: %s" % unused_cores
+            for unused_core in unused_cores:
+                print "ATTENTION: !!! Removing unused core %s" % unused_core
+                shutil.rmtree(unused_core)
+
+            # Check if we can skipp the core update
+            print "Check if we can skipp the core update"
+            if os.path.exists(conf['latest_core_dir']) and not os.path.isfile(core_copy_lock):
+                if os.path.exists(pj(conf['latest_core_dir'], '.git')):
+                    # Check that the latest_core_dir size is at least 600 MB
+                    repo_size = shell(['du', '-sm', conf['latest_core_dir']])
+                    print "Latest repository size in MB: %s" % repo_size
+                    try:
+                        repo_size = int(repo_size.split()[0])
+                        if repo_size > 600:
+                            print "Latest core repository seems to exists! Skipping Core Update!"
+                            _set_rights(conf, paths)
+                            return True
+                    except Exception as e:
+                        print "WARNING: Could not determine size of latest repository folder %s!\n%s" \
+                              "" % (conf['latest_core_dir'], repr(e))
+
+            # Update and clean current core
+            print "Update and clean current core %s for commit %s" % (conf['core_dir'], conf['core'])
+            _git_latest(conf['core_dir'], conf['core_repo'], commit=conf['core'])
+
+            # Check that the free space for /opt/online is at least 2GB
+            statvfs = os.statvfs(root_dir)
+            free_bytes = statvfs.f_frsize * statvfs.f_bavail
+            free_gbyte = free_bytes / 1000000000
+            assert free_gbyte >= 2, "CRITICAL: Free disk space is less than 2 GB in %s" % root_dir
+            print "%sGB free disk space in %s" % (free_gbyte, root_dir)
+
+            # Create the latest_core_dir folder
+            print "Create file core_copy.lock at %s" % core_copy_lock
+            if not os.path.exists(conf['latest_core_dir']):
+                os.makedirs(conf['latest_core_dir'])
+
+            # Create the core_copy_lock file
+            with open(core_copy_lock, 'w') as ccl_handle:
+                ccl_handle.write(conf['instance'] + '\n' + datetime.datetime.now().isoformat() + '\n')
+            assert os.path.isfile(core_copy_lock), 'CRITICAL: Could not create core_copy_lock file %s' \
+                                                   '' % core_copy_lock
+
+            # Optimization to save the "download from github" time
+            lcd = conf['latest_core_dir']
+            if not os.path.exists(lcd) or not os.path.exists(pj(lcd, '.git')):
+                print "Copy current core %s to %s" % (conf['core_dir'], conf['latest_core_dir'])
+                # ATTENTION: "/." is necessary to copy also all hidden files and to not create the source folder
+                #            in the target directory!
+                shell(['cp', '-rpf', conf['core_dir']+'/.', conf['latest_core_dir']])
+
+            # get latest core
+            print "Checkout, clean and reset target core %s for commit %s" % (conf['latest_core_dir'], conf['latest_core'])
+            _git_latest(conf['latest_core_dir'], conf['core_repo'], commit=conf['latest_core'])
+
+            # Delete the core_copy_lock file
+            print "Core successfully created! "
+            if os.path.isfile(core_copy_lock):
+                print "Deleting file core_copy.lock at %s" % core_copy_lock
+                os.remove(core_copy_lock)
+            else:
+                print "WARNING: File core_copy.lock was already deleted at %s" % core_copy_lock
 
     # Set correct rights
-    if conf['production_server']:
-        for path in paths:
-            path = str(path)
-            if conf['root_dir'] in path:
-                try:
-                    print "Set correct user and rights for core in path %s" % path
-                    shell(['chown', '-R', 'root:root', path], cwd=path, timeout=60)
-                    # Make sure others can read(use) the core and its files too
-                    # HINT: This should be ok already in the core in Github!
-                    shell(['chmod', '-R', 'o=rX', path], cwd=path, timeout=60)
-                except (Exception, subprocess32.TimeoutExpired) as e:
-                    print 'ERROR: Set user and rights failed! Retcode %s !' % pp(e)
+    _set_rights(conf, paths)
+
+    # Finish
     print "---- GET CORES done\n"
     return True
 
