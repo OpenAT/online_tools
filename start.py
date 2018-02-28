@@ -652,7 +652,9 @@ def _get_cores(conf):
                 with open(core_copy_lock, 'r') as f:
                     i_core_copy_lock = f.readline()
                 print "WARNING: core_copy_lock file %s found from instance %s" % (core_copy_lock, i_core_copy_lock)
-                if i_core_copy_lock == conf['instance']:
+                print "Check if this instance %s created the core copy lock file (first line %s)" % (conf['instance'],
+                                                                                                     i_core_copy_lock)
+                if conf['instance'] in i_core_copy_lock:
                     print "WARNING: The core_copy_lock file is from this instance! DELETING core_copy_lock file!"
                     os.remove(core_copy_lock)
             waitcounter = 0
@@ -673,8 +675,10 @@ def _get_cores(conf):
                     print "Check release tag is %s in %s" % (conf['latest_core'], conf['latest_core_dir'])
                     try:
                         core_tag = shell(['git', '-C', conf['latest_core_dir'],
-                                          '--tags', '--exact-match', '--match=o8r*'])
+                                          'describe', '--tags', '--exact-match', '--match=o8r*'])
                         print "Commit tag in latest core dir: %s" % core_tag
+                        if not core_tag:
+                            raise Exception("Core Tag not found!")
                     except Exception as e:
                         core_tag = 'exception_not_found'
                         print "WARNING: Could not get core tag!: %s\n" % repr(e)
@@ -763,7 +767,8 @@ def _get_cores(conf):
 
             # Check the latest core tag
             print "Check the latest core commit tag"
-            core_tag = shell(['git', '-C', conf['latest_core_dir'], '--tags', '--exact-match', '--match=o8r*'])
+            core_tag = shell(['git', '-C', conf['latest_core_dir'],
+                              'describe', '--tags', '--exact-match', '--match=o8r*'])
             print "Commit tag in latest core dir: %s" % core_tag
             assert core_tag and conf['latest_core'] in core_tag, "Release tag not correct in %s!" \
                                                                  "" % conf['latest_core_dir']
