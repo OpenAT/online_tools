@@ -643,6 +643,8 @@ def _get_cores(conf):
             print 'WARNING: Development server found! Skipping %s clone or checkout' % conf['latest_core_dir']
 
         else:
+            root_dir = conf['root_dir']
+
             # Wait for any other running core copy to finish
             print "Check if a core copy is already running by an other instance"
             i_core_copy_lock = 'notset'
@@ -670,10 +672,10 @@ def _get_cores(conf):
                     # TODO: Check the core checkout tag matches the latest_core
 
                     # Check that the latest_core_dir size is at least 600 MB
-                    repo_size = shell(['du', '-sm', conf['latest_core_dir']])
-                    print "Latest repository size in MB: %s" % repo_size
                     try:
+                        repo_size = shell(['du', '-sm', conf['latest_core_dir']])
                         repo_size = int(repo_size.split()[0])
+                        print "Latest repository size in MB: %s" % repo_size
                         if repo_size > 600:
                             print "Latest core repository seems to exists! Skipping Core Update!"
                             _set_rights(conf, paths)
@@ -681,15 +683,6 @@ def _get_cores(conf):
                     except Exception as e:
                         print "WARNING: Could not determine size of latest repository folder %s!\n%s" \
                               "" % (conf['latest_core_dir'], repr(e))
-
-            # Check that the free space for /opt/online is at least 2GB
-            print "Check free disk space"
-            root_dir = conf['root_dir']
-            statvfs = os.statvfs(root_dir)
-            free_bytes = statvfs.f_frsize * statvfs.f_bavail
-            free_gbyte = free_bytes / 1000000000
-            assert free_gbyte >= 2, "CRITICAL: Free disk space is less than 2 GB in %s" % root_dir
-            print "%sGB free disk space in %s" % (free_gbyte, root_dir)
 
             # Create the latest_core_dir folder
             print "Check directory for the latest core %s" % conf['latest_core_dir']
@@ -731,6 +724,14 @@ def _get_cores(conf):
             for unused_core in unused_cores:
                 print "ATTENTION: !!! Removing unused core %s" % unused_core
                 shutil.rmtree(unused_core)
+
+            # Check that the free space for /opt/online is at least 3GB
+            print "Check free disk space"
+            statvfs = os.statvfs(root_dir)
+            free_bytes = statvfs.f_frsize * statvfs.f_bavail
+            free_gbyte = free_bytes / 1000000000
+            assert free_gbyte >= 3, "CRITICAL: Free disk space is less than 3 GB in %s" % root_dir
+            print "%sGB free disk space in %s" % (free_gbyte, root_dir)
 
             # Update and clean current core
             print "Update and clean current core %s for commit %s" % (conf['core_dir'], conf['core'])
