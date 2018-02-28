@@ -677,7 +677,7 @@ def _get_cores(conf):
                         print "Commit tag in latest core dir: %s" % core_tag
                     except Exception as e:
                         core_tag = 'exception_not_found'
-                        print "Could not get core tag: %s\n" % repr(e)
+                        print "WARNING: Could not get core tag!: %s\n" % repr(e)
 
                     # Check that the latest_core_dir size is at least 600 MB
                     print "Check core size"
