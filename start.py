@@ -669,20 +669,31 @@ def _get_cores(conf):
             print "Check if we can skipp the core update"
             if os.path.exists(conf['latest_core_dir']) and not os.path.isfile(core_copy_lock):
                 if os.path.exists(pj(conf['latest_core_dir'], '.git')):
-                    # TODO: Check the core checkout tag matches the latest_core
+                    # Check if the tag is correct
+                    print "Check release tag is %s in %s" % (conf['latest_core'], conf['latest_core_dir'])
+                    try:
+                        core_tag = shell(['git', '-C', conf['latest_core_dir'],
+                                          '--tags', '--exact-match', '--match=o8r*'])
+                        print "Commit tag in latest core dir: %s" % core_tag
+                    except Exception as e:
+                        core_tag = 'exception_not_found'
+                        print "Could not get core tag: %s\n" % repr(e)
 
                     # Check that the latest_core_dir size is at least 600 MB
-                    try:
-                        repo_size = shell(['du', '-sm', conf['latest_core_dir']])
-                        repo_size = int(repo_size.split()[0])
-                        print "Latest repository size in MB: %s" % repo_size
-                        if repo_size > 600:
-                            print "Latest core repository seems to exists! Skipping Core Update!"
-                            _set_rights(conf, paths)
-                            return True
-                    except Exception as e:
-                        print "WARNING: Could not determine size of latest repository folder %s!\n%s" \
-                              "" % (conf['latest_core_dir'], repr(e))
+                    print "Check core size"
+                    if core_tag and conf['latest_core'] in core_tag:
+                        try:
+                            repo_size = shell(['du', '-sm', conf['latest_core_dir']])
+                            repo_size = int(repo_size.split()[0])
+                            print "Latest repository size in MB: %s" % repo_size
+                            if repo_size > 600:
+                                print "Latest core repository seems to exists! Skipping Core Update!"
+                                _set_rights(conf, paths)
+                                return True
+                        except Exception as e:
+                            print "WARNING: Could not determine size of latest repository folder %s!\n%s" \
+                                  "" % (conf['latest_core_dir'], repr(e))
+                    # Check if the commit matches
 
             # Create the latest_core_dir folder
             print "Check directory for the latest core %s" % conf['latest_core_dir']
@@ -746,8 +757,16 @@ def _get_cores(conf):
                 shell(['cp', '-rpf', conf['core_dir']+'/.', conf['latest_core_dir']])
 
             # get latest core
-            print "Checkout, clean and reset target core %s for commit %s" % (conf['latest_core_dir'], conf['latest_core'])
+            print "Checkout, clean and reset target core %s for commit %s" % (conf['latest_core_dir'],
+                                                                              conf['latest_core'])
             _git_latest(conf['latest_core_dir'], conf['core_repo'], commit=conf['latest_core'])
+
+            # Check the latest core tag
+            print "Check the latest core commit tag"
+            core_tag = shell(['git', '-C', conf['latest_core_dir'], '--tags', '--exact-match', '--match=o8r*'])
+            print "Commit tag in latest core dir: %s" % core_tag
+            assert core_tag and conf['latest_core'] in core_tag, "Release tag not correct in %s!" \
+                                                                 "" % conf['latest_core_dir']
 
             # Delete the core_copy_lock file
             print "Core successfully created! "
