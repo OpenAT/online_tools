@@ -651,9 +651,11 @@ def _get_cores(conf):
             if os.path.exists(conf['latest_core_dir']) and os.path.isfile(core_copy_lock):
                 with open(core_copy_lock, 'r') as f:
                     i_core_copy_lock = f.readline()
+                    i_core_copy_lock = i_core_copy_lock.strip()
+
                 print "WARNING: core_copy_lock file %s found from instance %s" % (core_copy_lock, i_core_copy_lock)
-                print "Check if this instance %s created the core copy lock file (first line %s)" % (conf['instance'],
-                                                                                                     i_core_copy_lock)
+                print "Check if this instance '%s' created the core copy lock file (first line: '%s')" \
+                      "" % (conf['instance'], i_core_copy_lock)
                 if conf['instance'] in i_core_copy_lock:
                     print "WARNING: The core_copy_lock file is from this instance! DELETING core_copy_lock file!"
                     os.remove(core_copy_lock)
