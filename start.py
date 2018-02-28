@@ -627,6 +627,7 @@ def _get_cores(conf):
 
     # Get current core if needed
     if not os.path.exists(conf['core_dir']):
+        print "WARNING: Current core %s does not exist!" % conf['core']
         print "Create current core %s for commit %s" % (conf['core_dir'], conf['core'])
         _git_latest(conf['core_dir'], conf['core_repo'], commit=conf['core'])
 
@@ -642,21 +643,72 @@ def _get_cores(conf):
             print 'WARNING: Development server found! Skipping %s clone or checkout' % conf['latest_core_dir']
 
         else:
-            # TODO: Delete the core_copy_lock file if it was created by this instance (first line inside of file)
-
             # Wait for any other running core copy to finish
+            print "Check if a core copy is already running by an other instance"
+            i_core_copy_lock = 'notset'
+            if os.path.exists(conf['latest_core_dir']) and os.path.isfile(core_copy_lock):
+                with open(core_copy_lock, 'r') as f:
+                    i_core_copy_lock = f.readline()
+                print "WARNING: core_copy_lock file %s found from instance %s" % (core_copy_lock, i_core_copy_lock)
+                if i_core_copy_lock == conf['instance']:
+                    print "WARNING: The core_copy_lock file is from this instance! DELETING core_copy_lock file!"
+                    os.remove(core_copy_lock)
             waitcounter = 0
             while os.path.exists(conf['latest_core_dir']) and os.path.isfile(core_copy_lock):
-                assert waitcounter <= 3, "Core copy not finished after 3 minutes!"
+                with open(core_copy_lock, 'r') as f:
+                    i_core_copy_lock = f.readline()
+                assert waitcounter <= 5, "Core copy of other instance %s not finished after 5 minutes!" \
+                                         "" % i_core_copy_lock
                 print "Core is already in copy by another update! Waiting 60 seconds before next check"
                 sleep(60)
                 waitcounter += 1
+
+            # Check if we can skipp the core update
+            print "Check if we can skipp the core update"
+            if os.path.exists(conf['latest_core_dir']) and not os.path.isfile(core_copy_lock):
+                if os.path.exists(pj(conf['latest_core_dir'], '.git')):
+                    # TODO: Check the core checkout tag matches the latest_core
+
+                    # Check that the latest_core_dir size is at least 600 MB
+                    repo_size = shell(['du', '-sm', conf['latest_core_dir']])
+                    print "Latest repository size in MB: %s" % repo_size
+                    try:
+                        repo_size = int(repo_size.split()[0])
+                        if repo_size > 600:
+                            print "Latest core repository seems to exists! Skipping Core Update!"
+                            _set_rights(conf, paths)
+                            return True
+                    except Exception as e:
+                        print "WARNING: Could not determine size of latest repository folder %s!\n%s" \
+                              "" % (conf['latest_core_dir'], repr(e))
+
+            # Check that the free space for /opt/online is at least 2GB
+            print "Check free disk space"
+            root_dir = conf['root_dir']
+            statvfs = os.statvfs(root_dir)
+            free_bytes = statvfs.f_frsize * statvfs.f_bavail
+            free_gbyte = free_bytes / 1000000000
+            assert free_gbyte >= 2, "CRITICAL: Free disk space is less than 2 GB in %s" % root_dir
+            print "%sGB free disk space in %s" % (free_gbyte, root_dir)
+
+            # Create the latest_core_dir folder
+            print "Check directory for the latest core %s" % conf['latest_core_dir']
+            if not os.path.exists(conf['latest_core_dir']):
+                print "Create directory for the latest core %s" % conf['latest_core_dir']
+                os.makedirs(conf['latest_core_dir'])
+
+            # Create the core_copy_lock file
+            if not os.path.isfile(core_copy_lock):
+                print "Create file core_copy.lock at %s" % core_copy_lock
+                with open(core_copy_lock, 'w') as ccl_handle:
+                    ccl_handle.write(conf['instance'] + '\n' + datetime.datetime.now().isoformat() + '\n\n')
+            assert os.path.isfile(core_copy_lock), 'CRITICAL: Could not create core_copy_lock file %s' \
+                                                   '' % core_copy_lock
 
             # Remove old and unused cores
             # ATTENTION: We already downloaded the latest instance.ini before we reach this point ;)
             # Search for all instance.ini files and extract the cores
             print "Remove unused cores"
-            root_dir = conf['root_dir']
             needed_cores = []
             for root, subFolders, files in os.walk(root_dir):
                 if 'instance.ini' in files:
@@ -680,44 +732,9 @@ def _get_cores(conf):
                 print "ATTENTION: !!! Removing unused core %s" % unused_core
                 shutil.rmtree(unused_core)
 
-            # Check if we can skipp the core update
-            print "Check if we can skipp the core update"
-            if os.path.exists(conf['latest_core_dir']) and not os.path.isfile(core_copy_lock):
-                if os.path.exists(pj(conf['latest_core_dir'], '.git')):
-                    # Check that the latest_core_dir size is at least 600 MB
-                    repo_size = shell(['du', '-sm', conf['latest_core_dir']])
-                    print "Latest repository size in MB: %s" % repo_size
-                    try:
-                        repo_size = int(repo_size.split()[0])
-                        if repo_size > 600:
-                            print "Latest core repository seems to exists! Skipping Core Update!"
-                            _set_rights(conf, paths)
-                            return True
-                    except Exception as e:
-                        print "WARNING: Could not determine size of latest repository folder %s!\n%s" \
-                              "" % (conf['latest_core_dir'], repr(e))
-
             # Update and clean current core
             print "Update and clean current core %s for commit %s" % (conf['core_dir'], conf['core'])
             _git_latest(conf['core_dir'], conf['core_repo'], commit=conf['core'])
-
-            # Check that the free space for /opt/online is at least 2GB
-            statvfs = os.statvfs(root_dir)
-            free_bytes = statvfs.f_frsize * statvfs.f_bavail
-            free_gbyte = free_bytes / 1000000000
-            assert free_gbyte >= 2, "CRITICAL: Free disk space is less than 2 GB in %s" % root_dir
-            print "%sGB free disk space in %s" % (free_gbyte, root_dir)
-
-            # Create the latest_core_dir folder
-            print "Create file core_copy.lock at %s" % core_copy_lock
-            if not os.path.exists(conf['latest_core_dir']):
-                os.makedirs(conf['latest_core_dir'])
-
-            # Create the core_copy_lock file
-            with open(core_copy_lock, 'w') as ccl_handle:
-                ccl_handle.write(conf['instance'] + '\n' + datetime.datetime.now().isoformat() + '\n')
-            assert os.path.isfile(core_copy_lock), 'CRITICAL: Could not create core_copy_lock file %s' \
-                                                   '' % core_copy_lock
 
             # Optimization to save the "download from github" time
             lcd = conf['latest_core_dir']
