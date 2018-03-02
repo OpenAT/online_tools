@@ -121,7 +121,7 @@ parser.add_argument('-m', '--machine', required=True, help='Database Host-IP or 
 parser.add_argument('-p', '--port', required=True, help='Database Port')
 parser.add_argument('-u', '--dbuser', required=True, help='Database User')
 parser.add_argument('-s', '--dbsecret', required=True, help='Database Password')
-parser.add_argument('-l', '--logfile', required=False, help='Log File')
+parser.add_argument('-l', '--log_file', required=False, help='Log File')
 parser.add_argument('-v', '--verbose', required=False,
                     choices=['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'],
                     default='INFO',

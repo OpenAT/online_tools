@@ -39,7 +39,7 @@ parser.add_argument('-s', '--admin_secret',
                     default='admin',
                     help='admin password')
 
-parser.add_argument('-l', '--logfile', metavar='/path/to/logfile.log', help='Log file')
+parser.add_argument('-l', '--log_file', metavar='/path/to/log_file.log', help='Log file')
 parser.add_argument('-v', '--verbose', help='Log level',
                     choices=['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'],
                     default='INFO')

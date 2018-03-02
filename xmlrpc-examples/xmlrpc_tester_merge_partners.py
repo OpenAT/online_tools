@@ -9,7 +9,7 @@ import time
 url = 'http://demo.local.com'
 db = 'demo'
 username = 'admin'
-password = 'hfjfk94l4mf#3'
+password = ''
 
 common = xmlrpclib.ServerProxy('{}/xmlrpc/2/common'.format(url))
 print common.version()
@@ -24,6 +24,6 @@ models = xmlrpclib.ServerProxy('{}/xmlrpc/2/object'.format(url))
 print models.execute_kw(db, uid, password, 'res.partner', 'merge_partner',
                         [],
                         {
-                            'partner_to_remove_id': 101871,
-                            'partner_to_keep_id':   35954,
+                            'partner_to_remove_id': 101872,
+                            'partner_to_keep_id':   101875,
                          })

@@ -28,6 +28,9 @@ HINT: This script has 4 main sections:
   - MAIN ROUTINE
   - START
 """
+from shell_tools import shell
+import git_tools as git
+#
 import argparse
 import os
 from os.path import join as pj
@@ -35,56 +38,27 @@ import sys
 import logging
 import ConfigParser
 import pwd
-import subprocess32
 import shutil
 import time
 import zipfile
 from xmlrpclib import ServerProxy
-import base64
 
 
 # ----------------------------
 # HELPER FUNCTIONS
 # ----------------------------
 def excepthook(*eargs):
-    logging.getLogger(__name__).critical('Uncaught exception:\n\n', exc_info=eargs)
+    # Get the root logger and log to CRITICAL
+    logging.getLogger(__name__).critical('Uncaught exception:\n'
+                                         '-------------------\n', exc_info=eargs)
     
 
-def _production_server_check(instance_path):
-    instance_path = os.path.abspath(instance_path)
-    instance = os.path.basename(instance_path)
+def _production_server_check(instance_dir):
+    instance_dir = os.path.abspath(instance_dir)
+    instance = os.path.basename(instance_dir)
     return os.path.exists(pj('/etc/init.d', instance))
 
 
-def _shell(cmd=list(), user=None, cwd=None, env=None, preexec_fn=None, **kwargs):
-    assert isinstance(cmd, (list, tuple)), '_shell(cmd): cmd must be of type list or tuple!'
-    # Working directory
-    cwd = cwd or os.getcwd()
-
-    # Linux User
-    linux_user = pwd.getpwuid(os.getuid())
-    # Switch user and environment if given
-    if user:
-        # Get linux user details from unix user account and password database
-        # HINT: In case the user can not be found pwd will throw an KeyError exception.
-        linux_user = pwd.getpwnam(user)
-        # Create a new os environment
-        env = os.environ.copy()
-        # Set environment variables
-        env['USER'] = user
-        env['LOGNAME'] = linux_user.pw_name
-        env['HOME'] = linux_user.pw_dir
-        # Create a new function that will be called by subprocess32 before the shell command is executed
-        preexec_fn = _switch_user_function(linux_user.pw_uid, linux_user.pw_gid)
-
-    # Log user Current-Working-Directory and shell command to be executed
-    logging.debug('[%s %s]$ %s' % (linux_user.pw_name, cwd, ' '.join(cmd)))
-
-    # Execute shell command and return its output
-    return subprocess32.check_output(cmd, cwd=cwd, env=env, preexec_fn=preexec_fn, **kwargs)
-
-
-# TODO: Make this a bit smarter ;) !
 def _service_exists(service_name):
     service_file = pj('/etc/init.d', service_name)
     if os.path.exists(service_file):
@@ -124,7 +98,7 @@ def _service_control(service, state, wait=10):
         return True
 
     # Set service state
-    _shell(['service', service, state])
+    shell(['service', service, state])
 
     # Wait for service to change state
     logging.debug("Waiting %s seconds for service to change state")
@@ -140,9 +114,10 @@ def _service_control(service, state, wait=10):
         return False
 
 
-def _inifile_to_dict(inifile, section='options'):
+def inifile_to_dict(inifile, section='options'):
+    log.info("Read and parse *.ini file %s" % inifile)
     inifile = os.path.normpath(inifile)
-    assert os.path.isfile(inifile), 'Config file %s not found!' % inifile
+    assert os.path.isfile(inifile), 'File %s not found!' % inifile
     cparser = ConfigParser.SafeConfigParser()
     cparser.read(inifile)
     return dict(cparser.items(section))
@@ -173,65 +148,33 @@ def _test_optional_odoo_args(optional_args=list()):
     return True
 
 
-# Returns a function! Helper function for function "_shell()" to switch the user before shell command is executed
-def _switch_user_function(user_uid, user_gid):
-    def inner():
-        logging.debug('Switch user from %s:%s to %s:%s.' % (os.getuid(), os.getgid(), user_uid, user_gid))
-        # HINT: Will throw an exception if user or group can not be switched
-        os.setresgid(user_gid, user_gid, user_gid)
-        os.setresuid(user_uid, user_gid, user_gid)
-    return inner
-
-
-def _git_submodule_sha1(root_repo_path, submodule=str()):
-    # HINT: Full submodule path needed!
-    #       e.g.: 'fundraising_studio/online' for 'dadi/fundraising_studio/online'
-    #       This allows that submodules of submodules will not get found if they have the same name!
-
-    # Use git to get the list of submodules and their current commits SHA1
-    submodules = _shell(['git', 'submodule', 'status', '--recursive'], cwd=root_repo_path)
-    assert submodules, 'No submodules found in %s! Did you run "git submodule init"?' % root_repo_path
-
-    # Create a dict out of the git output
-    # e.g.: {'fundraising_studio/online': '-88b145319056b9d6feac9c86458371cd12a3960c'}
-    # Example git-output line: "-88b145319056b9d6feac9c86458371cd12a3960c fundraising_studio/online "
-    # HINT: [-40:] means use first 40 characters from right to left in the string (= removing the - if it exists)
-    submodules = {line.split()[1].strip(): line.split()[0].strip()[-40:] for line in submodules.splitlines()}
-
-    # Get SHA1 for submodule and check that it is 40 characters long!
-    submodule_sha1 = submodules[submodule]
-    assert len(submodule_sha1) == 40, 'Wrong or missing SHA1 (%s) for submodule %s in %s!' % (submodule_sha1,
-                                                                                              submodule, root_repo_path)
-    return submodule_sha1
-
-
-def _odoo_config(instance_path, cmd_args=list()):
+def _odoo_config(instance_dir, cmd_args=list()):
     """ Parse odoo configuration file and command line arguments
 
-    :param instance_path: string
+    :param instance_dir: string
     :param cmd_args: list Optional CMD Arguments that will be passed on to odoo
     :return: dict Odoo configuration dictionary with odoo startup commandline arguments
     """
     # Check for production server
-    production_server = _production_server_check(instance_path)
+    production_server = _production_server_check(instance_dir)
     
-    # Assert instance_path
-    instance_path = os.path.normpath(instance_path)
-    assert os.path.exists(instance_path), 'Instance path %s not found!' % instance_path
+    # Assert instance_dir
+    instance_dir = os.path.normpath(instance_dir)
+    assert os.path.exists(instance_dir), 'Instance path %s not found!' % instance_dir
 
     # Assert that no odoo cmd options are in cmd_args that will be set here
     _test_optional_odoo_args(cmd_args)
 
     # Odoo server config default development values
     # HINT: Will be overridden later on from values of the server.conf file if given
-    instance = os.path.basename(instance_path)
+    instance = os.path.basename(instance_dir)
     oc = {
         'db_name': instance,
         'db_user': 'vagrant',
         'db_password': 'vagrant',
         'db_host': '127.0.0.1',
         'db_port': '5432',
-        'data_dir': pj(instance_path, 'data_dir'),
+        'data_dir': pj(instance_dir, 'data_dir'),
         'server_wide_modules': 'web,web_kanban,dbfilter_from_header',
         'workers':'0'
     }
@@ -241,26 +184,26 @@ def _odoo_config(instance_path, cmd_args=list()):
         server_conf = cmd_args[cmd_args.index('-c') + 1]
         assert os.path.isfile(server_conf), "Odoo server.conf file %s set by -c is missing!" % server_conf
     else:
-        server_conf = pj(instance_path, 'server.conf')
+        server_conf = pj(instance_dir, 'server.conf')
 
     # Overwrite settings by settings from server.conf ini file
     # HINT: This is only needed to get the values for "workers" and "server_wide_modules" because they are required
     #       in startup_args. odoo will always search for server.conf or it is given by -c
     if os.path.isfile(server_conf):
         logging.info('Read odoo server.conf from: %s' % server_conf)
-        oc.update(_inifile_to_dict(server_conf))
+        oc.update(inifile_to_dict(server_conf))
     else:
         # HINT: On prod machines there has to be a server.conf!
         assert not production_server, "Odoo server.conf file %s missing on production machine!" % server_conf
         logging.warn('No server.conf found at %s! Using development defaults instead.' % server_conf)
 
     # Get online repo location
-    if os.path.isfile(pj(instance_path, 'fundraising_studio/online/odoo/odoo.py')):
-        oc['online_repo'] = pj(instance_path, 'fundraising_studio/online')
+    if os.path.isfile(pj(instance_dir, 'fundraising_studio/online/odoo/odoo.py')):
+        oc['online_repo'] = pj(instance_dir, 'fundraising_studio/online')
     else:
         # Get SHA1 of submodule repo "online"
-        online_sha1 = _git_submodule_sha1(instance_path, submodule='fundraising_studio/online')
-        oc['online_repo'] = pj(os.path.dirname(instance_path), 'online_' + online_sha1)
+        online_sha1 = git.submodule_sha1(instance_dir, submodule='fundraising_studio/online')
+        oc['online_repo'] = pj(os.path.dirname(instance_dir), 'online_' + online_sha1)
     assert os.path.exists(oc['online_repo']), 'Repository online not found at %s !' % oc['online_repo']
     logging.info('Repository online is located at %s' % oc['online_repo'])
 
@@ -270,7 +213,7 @@ def _odoo_config(instance_path, cmd_args=list()):
                     pj(oc['online_repo'], 'addons-loaded')]
 
     # instance addons path
-    instance_addons = pj(instance_path, 'addons')
+    instance_addons = pj(instance_dir, 'addons')
     for dirpath, dirnames, files in os.walk(instance_addons):
         if dirnames:
             # TODO better check if addons are in the addons folder (search for __openerp.py__)
@@ -299,10 +242,81 @@ def _odoo_config(instance_path, cmd_args=list()):
     return oc
 
 
-def _odoo_access_check(instance_path, odoo_config=None):
-    instance_path = os.path.abspath(instance_path)
-    instance = os.path.basename(instance_path)
-    odoo_config = odoo_config or _odoo_config(instance_path)
+class Settings:
+    def __init__(self, instance_dir, startup_args=[], log_level='INFO', log_file=''):
+        instance_dir = os.path.abspath(instance_dir)
+        assert os.path.isdir(instance_dir), "Instance directory not found at %s!" % instance_dir
+
+        instance_ini_file = pj(known_args.instance_dir, 'instance.ini')
+        assert os.path.isfile(instance_ini_file), "File 'instance.ini' not found at %s!" % instance_ini_file
+
+        # Basics
+        self.instance_dir = instance_dir
+        self.startup_args = startup_args
+
+        # Logging
+        self.log_file = log_file
+        self.log_level = log_level
+
+        # Environment information
+        self.production_server = _production_server_check(instance_dir)
+
+        # Instance Settings
+        self.instance = os.path.basename(instance_dir)
+        self.instance_ini_file = instance_ini_file
+        self.instance_core_tag = inifile_to_dict(S.instance_ini_file)['core']
+        self.instance_core_dir = pj(instance_dir, 'online_'+self.instance_core_tag)
+        icd_tag = git.get_tag(self.instance_core_dir)
+        assert self.instance_core_tag == icd_tag, (
+                "Core from instance.ini is %s not matching tag in core dir %s!" % (self.instance_core_tag, icd_tag))
+
+        # odoo startup configuration
+        # TODO: Make sure none of the long versions (-d = --database) are in startup_args
+        if '-c' in self.startup_args:
+            server_conf_file = startup_args[startup_args.index('-c')+1]
+        else:
+            server_conf_file = pj(instance_dir, 'server.conf')
+        self.server_conf = inifile_to_dict(server_conf_file) if os.path.isfile(server_conf_file) else {}
+
+        sa = [i for i in item.split('=') for item in startup_args]
+        self.db_name = sa[sa.index('-d')+1] if '-d' in sa else self.server_conf.get('db_name')
+        self.db_user = sa[sa.index('-r')+1] if '-r' in sa else self.server_conf.get('db_user')
+        self.db_password = sa[sa.index('-w')+1] if '-w' in sa else self.server_conf.get('db_password')
+        self.db_host = sa[sa.index('--db_host')+1] if '--db_host' in sa else self.server_conf.get('db_host')
+        self.db_port = sa[sa.index('--db_port')+1] if '--db_port' in sa else self.server_conf.get('db_port')
+        self.db_template = (sa[sa.index('--db-template')+1] if '--db-template' in sa
+                            else self.server_conf.get('db_template'))
+        self.addons_path = (sa[sa.index('--addons-path')+1] if '--addons-path' in sa
+                            else self.server_conf.get('addons_path'))
+
+        # Set default startup values if not set by command line or server.conf
+        if not self.db_name:
+            self.startup_args.extend(['-d', self.instance])
+        if not self.db_user:
+            self.startup_args.extend(['-r', 'vagrant'])
+        if not self.db_password:
+            self.startup_args.extend(['-w', 'vagrant'])
+        if not self.db_host:
+            self.startup_args.extend(['--db_host=127.0.0.1'])
+        if not self.db_port:
+            self.startup_args.extend(['--db_port=5432'])
+        if not self.db_template:
+            self.startup_args.extend(['--db-template=template0'])
+        if not self.addons_path:
+            addons_dirs = ','.join([pj(self.instance_core_dir, 'odoo/openerp/addons'),
+                                    pj(self.instance_core_dir, 'odoo/addons'),
+                                    pj(self.instance_core_dir, 'addons-loaded'),
+                                    pj(instance_dir, 'addons')])
+            self.addons_path.extend(['--addons-path='+addons_dirs])
+
+        # Set instance addons dirs based on addons_path
+        self.instance_addons_dirs = self.addons_path.split(',')
+
+
+def _odoo_access_check(instance_dir, odoo_config=None):
+    instance_dir = os.path.abspath(instance_dir)
+    instance = os.path.basename(instance_dir)
+    odoo_config = odoo_config or _odoo_config(instance_dir)
 
     logging.debug('Checking odoo xmlrpc access for instance %s' % instance)
 
@@ -325,10 +339,10 @@ def _odoo_access_check(instance_path, odoo_config=None):
 # ----------------------------
 # SCRIPT MODES
 # ----------------------------
-def backup(instance_path, backup_file=None, start_time=str(time.strftime('%Y-%m-%d_%H-%M-%S'))):
+def backup(instance_dir, backup_file=None, start_time=str(time.strftime('%Y-%m-%d_%H-%M-%S'))):
     begin_backup = time.time()
-    instance_path = os.path.abspath(instance_path)
-    instance = os.path.basename(instance_path)
+    instance_dir = os.path.abspath(instance_dir)
+    instance = os.path.basename(instance_dir)
     logging.info('----------------------------------------')
     logging.info('BACKUP instance %s' % instance)
     logging.info('----------------------------------------')
@@ -337,16 +351,16 @@ def backup(instance_path, backup_file=None, start_time=str(time.strftime('%Y-%m-
 
     # Backup File Name
     if not backup_file:
-        fs_sha1 = _git_submodule_sha1(instance_path, submodule='fundraising_studio')
+        fs_sha1 = git.submodule_sha1(instance_dir, submodule='fundraising_studio')
         filename = instance + '--' + start_time + '--' + fs_sha1
-        backup_file = pj(instance_path, 'backup', filename)
+        backup_file = pj(instance_dir, 'backup', filename)
 
     # Check backup_path
     backup_path = os.path.dirname(backup_file)
     assert os.path.exists(backup_path), 'Backup path %s not found!' % backup_path
 
     # Get odoo startup configuration (for data_dir location and db_name)
-    oc = _odoo_config(instance_path)
+    oc = _odoo_config(instance_dir)
 
     # TODO: Create backup by xmlrpc/odoo if instance is running
 
@@ -370,7 +384,7 @@ def backup(instance_path, backup_file=None, start_time=str(time.strftime('%Y-%m-
     db_backup_cmd = ['pg_dump',
                      '--format=c', '--no-owner', '--dbname='+oc['db_url'], '--file='+db_target]
     logging.info('Backup instance database %s to temporary folder %s' % (oc['db_name'], db_target))
-    _shell(db_backup_cmd, timeout=1800)
+    shell(db_backup_cmd, timeout=1800)
     assert os.path.getsize(db_target) >= 10000, 'Database backup inaccessible or smaller than 10KB at %s' % db_target
 
     # Create backup zip file from temporary folder and delete temp folder
@@ -392,15 +406,15 @@ def backup(instance_path, backup_file=None, start_time=str(time.strftime('%Y-%m-
     return str(backup_file)
 
 
-def restore(instance_path, backup_to_restore):
+def restore(instance_dir, backup_to_restore):
     begin_restore = time.time()
-    instance_path = os.path.abspath(instance_path)
-    instance = os.path.basename(instance_path)
+    instance_dir = os.path.abspath(instance_dir)
+    instance = os.path.basename(instance_dir)
     backup_to_restore = os.path.abspath(backup_to_restore)
     logging.info('----------------------------------------')
     logging.info('RESTORE instance %s' % instance)
     logging.info('----------------------------------------')
-    assert os.path.exists(instance_path), 'Instance not found at %s' % instance_path
+    assert os.path.exists(instance_dir), 'Instance not found at %s' % instance_dir
     assert os.path.exists(backup_to_restore), 'Backup to restore not found at %s' % backup_to_restore
 
     # TODO: Test this code extensively
@@ -420,9 +434,9 @@ def restore(instance_path, backup_to_restore):
                 archive.extractall(custom_backup)
 
     # TODO: Restore through xmlrpc/odoo if odoo is accessible by xmlrpc and we have a native odoo backup
-    if not custom_backup and _odoo_access_check(instance_path):
+    if not custom_backup and _odoo_access_check(instance_dir):
         logging.info('Restoring native odoo backup by xmlrpc from %s' % backup_to_restore)
-        _odoo_restore(instance_path, backup_to_restore)
+        _odoo_restore(instance_dir, backup_to_restore)
         return True
 
     # TODO: Else manually restore
@@ -443,64 +457,49 @@ def update(settings=None):
     exit(0)
 
 
-def start(instance_path, cmd_args=list()):
-    instance_path = os.path.abspath(instance_path)
-    instance = os.path.basename(instance_path)
-    logging.info('----------------------------------------')
-    logging.info('START instance %s' % instance)
-    logging.info('----------------------------------------')
-    assert os.path.exists(instance_path), 'Instance path %s not found!' % known_args.instance_path
+def start(instance_dir, startup_args=[]):
+    instance_dir = os.path.abspath(instance_dir)
+    instance = os.path.basename(instance_dir)
+    log.info('----------------------------------------')
+    log.info('START instance %s' % instance)
+    log.info('----------------------------------------')
+    assert os.path.exists(instance_dir), 'Instance path %s not found!' % known_args.instance_dir
 
-    # TODO: Check if instance service is already running?
+    # Check odoo directory
+    odoo_dir = pj(S.core_dir, 'odoo_dir')
+    assert os.path.exists(instance_dir), "Directory odoo not found at %s!" % odoo_dir
 
-    # odoo startup configuration
-    oc = _odoo_config(instance_path, cmd_args=cmd_args)
+    # Change current working directory to the folder odoo_dir inside the repo online
+    log.info("Change working directory to %s" % odoo_dir)
+    os.chdir(odoo_dir)
 
-    # odoo location
-    odoo = pj(oc['online_repo'], 'odoo')
-    assert os.path.exists(instance_path), 'Odoo at path %s not found!' % odoo
+    # Change the current python script working directory to folder odoo_dir inside the repo online
+    log.info("Set python working directory (sys.path[0] and sys.argv[0]) to %s" % odoo_dir)
+    sys.path[0] = sys.argv[0] = odoo_dir
+    assert odoo_dir == os.getcwd() == sys.path[0], 'Could not change working directory to %s !' % odoo_dir
 
-    # Change current working directory to the folder odoo inside the repo online
-    os.chdir(odoo)
+    # Compute the odoo startup arguments (odoo startup configuration)
+    log.info("Compute final odoo startup arguments based on script command line options and server.conf")
+    odoo_cmd_args = odoo_startup_options(S.instance_dir, startup_args)
 
-    # Change the current python script working directory to folder odoo inside the repo online
-    sys.path[0] = sys.argv[0] = odoo
+    # Overwrite the original script cmd args with the odoo-only ones
+    user = pwd.getpwuid(os.getuid())
+    log.info("Set sys.argv to %s" % ' '.join(odoo_cmd_args))
+    sys.argv = sys.argv[0:1] + odoo_cmd_args
+    log.info("%s$ %s", (user, ' '.join(sys.argv)))
 
-    # Assert the script path and current working directory are correct
-    assert odoo == os.getcwd() == sys.path[0], 'Could not change path to %s !' % odoo
+    # Log system environment information
+    log.info("Environment current system user: %s" % user)
+    log.info("Environment $PATH: %s" % os.getcwd())
+    log.info("Environment $WORKING_DIRECTORY: %s" % os.environ.get("WORKING_DIRECTORY", ""))
+    log.info("Environment $PYTHONPATH: %s" % os.environ.get("PYTHONPATH", ""))
 
-    # Overwrite the the script cmd args with the ones we created for odoo
-    # HINT: [0:1] returns a list with the first item of the former list whereas [0] would just return the value
-    # TODO: Assert that there are no options from startup args in cmd_args
-    sys.argv = sys.argv[0:1] + oc['startup_args'] + cmd_args
-
-    # Start FS-Online
-    current_user = pwd.getpwuid(os.getuid())
-    logging.info('[%s %s]$ %s %s' % (current_user.pw_name, os.getcwd(), 'cli/server.py ', ' '.join(sys.argv)))
-    # Multi-Threaded odoo start
-    if oc['workers'] != '0':
-        logging.warn('Gevented mode enabled because workers = %s' % oc['workers'])
-        assert not sys.gettrace(), 'Multi threaded mode is not recommended for debugging!'
-        import gevent.monkey
-        gevent.monkey.patch_all()
-        import psycogreen.gevent
-        psycogreen.gevent.patch_psycopg()
-        # Start odoo (and reset logging before)
-        for handler in logging.root.handlers[:]:
-            logging.root.removeHandler(handler)
-        import openerp
-        openerp.cli.main()
-    # Single-Threaded odoo start
-    else:
-        if sys.gettrace():
-            logging.warn('Script started by debugger!')
-        logging.info('Disabling evented mode because workers = 0')
-        # Start odoo (and reset logging before)
-        for handler in logging.root.handlers[:]:
-            logging.root.removeHandler(handler)
-        import openerp
-        openerp.evented = False
-        openerp.cli.main()
+    # Run odoo
+    # HINT: 'import odoo' works because we are now in the FS-Online core directory that contains the folder odoo
+    # ATTENTION: To make this work openerp-gevent must be in some path that python can load!
+    log.info("Run odoo.main() from odoo.py")
+    import odoo
+    odoo.main()
 
 
 # ----------------------------
@@ -515,31 +514,29 @@ def fs_online():
     #       For this script it seems too much overhead too pass these to all functions - no benefit but more text
 
     # Log basic info
-    logging.info('================================================================================')
-    logging.info('fs-online.py %s' % ' '.join(sys.argv))
-    logging.info('================================================================================')
-    logging.info('Production Server: %s' % s['production_server'])
-    logging.info('Logfile is located at %s.' % s['logfile'])
+    logging.info('Instance: %s' % S.instance)
+    logging.info('Production Server: %s' % S.production_server)
+    logging.info('Logfile: %s.' % S.log_file)
     logging.debug('CMD Script Arguments: %s' % known_args)
     logging.debug('CMD Optional Arguments passed on to odoo: %s' % unknown_args)
-
+    
     # BACKUP
     if known_args.backup or known_args.backup_to_file:
-        backup(instance_path=s['instance_path'], backup_file=known_args.backup_to_file, start_time=s['start_time'])
+        backup(instance_dir=S.instance_dir, backup_file=known_args.backup_to_file, start_time=S.start_time)
         exit(0)
 
     # RESTORE
     if known_args.restore:
-        restore(s['instance_path'], known_args.restore)
+        restore(S.instance_dir, known_args.restore)
         exit(0)
 
     # UPDATE
     if known_args.update or known_args.update_to_rev:
-        update(settings=s)
+        update(settings=S)
         exit(0)
 
     # START
-    return start(s['instance_path'], cmd_args=unknown_args)
+    return start(S.instance_dir, startup_args=unknown_args)
 
 
 # ----------------------------
@@ -548,14 +545,14 @@ def fs_online():
 # Create a new argument-parser object
 parser = argparse.ArgumentParser()
 # Add Arguments
-parser.add_argument('instance_path', help="Instance directory")
-parser.add_argument('--logfile', metavar='/path/logfile.log', help='Log File')
+parser.add_argument('instance_dir', help="Instance directory")
+parser.add_argument('--log_file', metavar='/path/log_file.log', help='Log File')
 parser.add_argument('--verbose', help='Log Level',
                     choices=['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'],
                     default='DEBUG')
 parser.add_argument('--backup',
                     action='store_true',
-                    help='Create a backup at the default location /[instance_path]/backups/[backup_name]')
+                    help='Create a backup at the default location /[instance_dir]/backups/[backup_name]')
 parser.add_argument('--backup-to-file',
                     metavar='/path/backup.zip',
                     help='Filename with full path to output the backup.')
@@ -576,60 +573,84 @@ parser.set_defaults(func=fs_online)
 # START
 # --------------------
 if __name__ == "__main__":
-    # Prerequisites:
-    #     - Set globally available variables
-    #     - Check instance path
-    #     - Setup logging
-    #
     # Globally available data stores (vars):
     # -------------------------------------------------------------------------------
-    # known_args        (Namespace)         CMD settings known to command parser
-    # unknown_args      (list)              CMD settings not set in command parser
-    # s                 (dict)              Settings dictionary
-    # logging           (logging instance)  Globally used logger __main__
+    # known_args        (Namespace)                 CMD settings known to command parser
+    # unknown_args      (list)                      CMD settings not set in command parser
+    # S                 (Class/Namespace Object)    Settings dictionary
+    # log               (logging instance)          Globally used logger __main__
     # -------------------------------------------------------------------------------
+    script_start_time = str(time.strftime('%Y-%m-%d_%H-%M-%S'))
 
-    # Get the cmd args from argparse
+    # Get the command line arguments
     known_args, unknown_args = parser.parse_known_args()
 
-    # SETTINGS DICTIONARY (globally accessible)
-    s = dict()
-    # Instance name and instance path
-    s['instance_path'] = os.path.abspath(known_args.instance_path)
-    s['instance'] = os.path.basename(s['instance_path'])
-    # Start Time, logfile with path (or None), production server check
-    s.update({
-        'start_time': str(time.strftime('%Y-%m-%d_%H-%M-%S')),
-        'logfile': os.path.abspath(known_args.logfile) if known_args.logfile else known_args.logfile,
-        'production_server': _production_server_check(s['instance_path']),
-    })
-    # Check instance path
-    assert os.path.exists(s['instance_path']), 'Instance path %s not found!' % known_args.instance_path
+    # Create a new namespace object for the settings
+    class S:
+        pass
 
-    # LOGGING
-    if s['production_server'] and not s['logfile']:
-        # Default logfile name and path for production servers (if None given)
-        if known_args.update:
-            s['logfile'] = pj(s['instance_path'], 'log/' + s['instance'] + '--update.log')
-        else:
-            s['logfile'] = pj(s['instance_path'], 'log/' + s['instance'] + '.log')
-    # If a logfile was set either by cmd or by defaults check that we could access the file
-    if s['logfile']:
-        assert os.access(os.path.dirname(s['logfile']), os.W_OK), 'Logfile location %s not writeable!' % s['logfile']
-    # Start logging
-    # HINT: https://docs.python.org/2/howto/logging-cookbook.html
-    # HINT: If you ever need to reconfigure logging later on you have to reset the handlers first.
-    #       http://stackoverflow.com/questions/12158048/changing-loggings-basicconfig-which-is-already-set
-    logging.basicConfig(
-        filename=s['logfile'],
-        level=getattr(logging, known_args.verbose.upper()),
-        datefmt='%Y-%m-%d %H:%M:%S',
-        format='%(asctime)s %(levelname)-8s %(message)s')
+    # START LOGGING
+    # -------------
+    # Set and check log_file
+    S.log_file = known_args.logfile if known_args.logfile else False
+    if S.log_file:
+        assert os.access(os.path.dirname(S.log_file), os.W_OK), 'Logfile location %s not writeable!' % S.log_file
 
-    # Redirect sys assertion outputs to the logger (by the helper function excepthook)
+    # Get a handle to the root logger (or instantiate it the first and only time)
+    # HINT: The root logger is a singleton so all calls to it will return the same object!
+    log = logging.getLogger()
+
+    # Create a format object to be used in log handlers
+    log_formatter = logging.Formatter(fmt='%(asctime)s %(levelname)-8s %(message)s',
+                                      datefmt='%Y-%m-%d %H:%M:%S')
+
+    # Create a log handler
+    if S.log_file:
+        log_handler = logging.FileHandler(filename=S.log_file)
+    else:
+        log_handler = logging.StreamHandler(sys.stdout)
+
+    # Configure the log format for the new handler
+    log_handler.setFormatter(log_formatter)
+
+    # Add the handler to the root logger
+    log.addHandler(log_handler)
+
+    # Redirect sys assertion outputs to the logger
     sys.excepthook = excepthook
-    # TODO: Redirect all stdout output to the logger ?!?
 
-    # Start the function fs_online
+    # Log script start
+    logging.info('================================================================================')
+    logging.info('fs-online.py %s' % ' '.join(sys.argv))
+    logging.info('================================================================================')
+
+    # SETTINGS (globally accessible)
+    # ------------------------------
+    # Make sure the instance path exits
+    assert os.path.exists(known_args.instance_dir), 'Instance directory not found at %s!' % known_args.instance_dir
+
+    # Make sure the instance.ini is available
+    instance_ini_file = pj(known_args.instance_dir, 'instance.ini')
+    assert os.path.isfile(instance_ini_file), 'File instance.ini not found at %s!' % instance_ini_file
+
+    # Instance
+    S.instance_dir = os.path.abspath(known_args.instance_dir)
+    S.instance = os.path.basename(S.instance_dir)
+    S.instance_ini_file = instance_ini_file
+    S.instance_core = inifile_to_dict(S.instance_ini_file)['core']
+    # Global
+    S.start_time = str(time.strftime('%Y-%m-%d_%H-%M-%S'))
+    S.production_server = _production_server_check(S.instance_dir)
+    # FS-Online Core (from instance.ini)
+    S.core_dir = pj(os.path.dirname(S.instance_dir), 'online_'+S.instance_core)
+    S.core_tag = git.get_tag(S.core_dir)
+    # Startup Config
+
+    # Check that the core dir name and the core tag and the instance_core matches
+    assert S.instance_core == S.core_tag, "Core from instance.ini is %s not matching core_tag %s!" \
+                                          "" % (S.instance_core, S.core_tag)
+
+    # START fs_online()
+    # -----------------
     # HINT: See "parser.set_defaults(func=fs_online)" above
     known_args.func()
