@@ -1,7 +1,6 @@
 # -*- coding: utf-'8' "-*-"
-
-import logging
 import os
+import sys
 import pwd
 import subprocess32
 import logging
@@ -21,7 +20,7 @@ def _switch_user_function(user_uid, user_gid):
 
 # Linux-Shell wrapper
 def shell(cmd=list(), user=None, cwd=None, env=None, preexec_fn=None, **kwargs):
-    log.info("Run shell command: %s" % cmd)
+    log.debug("Run shell command: %s" % cmd)
     assert isinstance(cmd, (list, tuple)), 'shell(cmd): cmd must be of type list or tuple!'
 
     # Working directory
@@ -51,4 +50,17 @@ def shell(cmd=list(), user=None, cwd=None, env=None, preexec_fn=None, **kwargs):
     log.info('[%s %s]$ %s' % (linux_user.pw_name, cwd, ' '.join(cmd)))
 
     # Execute shell command and return its output
-    return subprocess32.check_output(cmd, cwd=cwd, env=env, preexec_fn=preexec_fn, **kwargs)
+    # HINT: this was the original solution but this will not log errors but send it to sys.stderr
+    #return subprocess32.check_output(cmd, cwd=cwd, env=env, preexec_fn=preexec_fn, **kwargs)
+
+    # Log Error output also
+    # https://stackoverflow.com/questions/16198546/get-exit-code-and-stderr-from-subprocess-call
+    try:
+        result = subprocess32.check_output(cmd, cwd=cwd, env=env, preexec_fn=preexec_fn,
+                                           stderr=subprocess32.STDOUT, **kwargs)
+        return result
+    except subprocess32.CalledProcessError as e:
+        std_err = '{}'.format(e.output.decode(sys.getfilesystemencoding()))
+        if std_err:
+            log.warning(std_err)
+        raise e

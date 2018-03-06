@@ -7,8 +7,21 @@ import logging
 log = logging.getLogger()
 
 
-def submodule_sha1(path, submodule=str()):
+def get_sha1(path):
+    log.info("Get SHA1 of git repo at %s" % path)
+    assert os.path.isdir(path), "Repository path not found at %s" % path
+
+    # sha1 = shell(['git', 'rev-parse', 'HEAD'], cwd=path)
+    sha1 = shell(['git', 'log', '-1', '--pretty="%H"'], cwd=path)
+
+    assert len(sha1) == 40, 'Wrong or missing SHA1 (%s) for git repo at %s!' % (sha1, path)
+    return sha1
+
+
+def get_submodule_sha1(path, submodule=str()):
     log.info("Get SHA1 of submodule %s at %s" % (submodule, path))
+    assert os.path.isdir(path), "Repository path not found at %s" % path
+
     # HINT: Full submodule path needed!
     #       e.g.: 'fundraising_studio/online' for 'dadi/fundraising_studio/online'
     #       This allows that submodules of submodules will not get found if they have the same name!
@@ -30,7 +43,7 @@ def submodule_sha1(path, submodule=str()):
 
 
 def get_tag(path, match='o8r*'):
-    log.info("Get 'tag' from github repository at %s" % path)
+    log.info("Get 'tag' from git repo at %s" % path)
     assert os.path.isdir(path), "Repository path not found at %s" % path
 
     # HINT: -C and cwd=path are redundant (one would be enough) but kept here for reference
