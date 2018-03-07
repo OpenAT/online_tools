@@ -6,6 +6,9 @@ import zipfile
 from requests import Session, codes
 import base64
 from xmlrpclib import ServerProxy
+import zipfile
+
+from shell_tools import shell
 
 from urlparse import urljoin
 import logging
@@ -53,12 +56,12 @@ def backup(database, backup_file, host='http://127.0.0.1:8069', master_pwd='admi
     return backup_file
 
 
-def backup_manual(db_url='', filestore='', backup_file=''):
+def backup_manual(db_url='', data_dir='', backup_file=''):
     database = db_url.rsplit('/', 1)[1]
     assert database, "Database name not found in db_url!"
 
-    filestore = os.path.abspath(filestore)
-    assert os.path.exists(filestore), "Filestore not found at %s" % filestore
+    data_dir = os.path.abspath(data_dir)
+    assert os.path.exists(data_dir), "Folder data_dir not found at %s" % data_dir
 
     backup_file = os.path.abspath(backup_file)
     log.info("Start manual Odoo backup of database %s to %s" % (database, backup_file))
@@ -75,27 +78,44 @@ def backup_manual(db_url='', filestore='', backup_file=''):
     log.info("Create temporary backup folder at %s" % temp_dir)
     os.makedirs(temp_dir)
 
-    # Backup data
-    if os.path.isdir(os.path.join(filestore, database)):
-        source_dir = os.path.join(filestore, database)
-    else:
-        source_dir = filestore
+    # Backup file data (filestore of odoo)
+    source_dir = os.path.join(data_dir, 'filestore', database)
+    assert os.path.isdir(source_dir), "Files source directory not found at %s" % source_dir
+
     target_dir = os.path.join(temp_dir, 'filestore')
     log.info("Copy data at %s to %s" % (source_dir, target_dir))
     shutil.copytree(source_dir, target_dir)
 
-    # TODO: Backup database via pg_dump
+    # Backup database via pg_dump
+    db_file = os.path.join(temp_dir, 'db.dump')
+    log.info("Backup database %s via pg_dump to %s" % (database, db_file))
+    try:
+        shell(['pg_dump', '--format=c', '--no-owner', '--dbname=' + db_url, '--file=' + db_file], timeout=60*30)
+    except Exception as e:
+        log.error("Database backup via pg_dump failed! %s" % repr(e))
+        raise e
 
-    # TODO: ZIP data in temp_dir
+    # ZIP data in temp_dir
+    if backup_file.endswith('.zip'):
+        backup_file = backup_file.rsplit('.zip', 1)[0]
+    log.info("Create a zip archive at %s from temprary backup folder %s" % (backup_file, temp_dir))
+    backup_zip_file = shutil.make_archive(backup_file, 'zip', root_dir=temp_dir)
 
-    # TODO: Verify Zip Archive
+    # Verify Zip Archive
+    log.info("Verirfy zip archive at %s" % backup_zip_file)
+    try:
+        backup_zip = zipfile.ZipFile(backup_zip_file)
+        failed = backup_zip.testzip()
+        assert failed is None, "Damaged files in zip archive found! %s" % failed
+    except Exception as e:
+        log.error("Zip archive damaged!\n%s" % repr(e))
+        raise e
 
-    # TODO: Remove Temp folder
+    # Remove Temp folder
+    assert len(temp_dir) >= 12, "Temp directory seems to be wrong? %s" % temp_dir
+    log.info("Remove temp dir %s" % temp_dir)
+    shutil.rmtree(temp_dir)
 
-    # TODO: Log and return result
-
-
-
-
-
-
+    # Log and return result
+    log.info("Manual Odoo backup of database %s to %s done!" % (database, backup_zip_file))
+    return backup_zip_file

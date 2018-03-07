@@ -183,7 +183,8 @@ class Settings:
             self.core_tag = git.get_tag(self.instance_core_dir)
         except Exception as e:
             self.core_tag = False
-            log.warning("Could not get a tag for current commit %s of odoo core %s" % self.instance_core_dir)
+            log.warning("Could not get a tag for current commit %s of odoo core %s"
+                        "" % (self.core_commit, self.instance_core_dir))
 
         # Check that the odoo core release tag matches the instance.ini core tag
         if self.instance_core_tag != self.core_tag:
@@ -343,35 +344,37 @@ def backup(instance_dir, backup_file='', odoo_cmd_startup_args=[], log_file=''):
     # Default backup file name
     if not backup_file:
         core_id = s.core_tag or s.core_commit
+        start_str = datetime.datetime.utcnow().strftime('%Y-%m-%dT%H-%M-%S')
         assert core_id, "No commit tag or commit id found for odoo core at %s" % s.instance_core_dir
-        backup_name = instance + '--' + start.strftime('%Y-%m-%dT%H-%M-%S') + '--' + core_id + '.zip'
-        backup_file = pj(known_args.instance_dir, 'backups', backup_name)
+        backup_name = instance + '_' + start_str + '_' + core_id + '.zip'
+        backup_file = pj(known_args.instance_dir, 'update', backup_name)
 
-    # Clean file path
+    # Clean backup_file path
     backup_file = os.path.abspath(backup_file)
 
     # Try a backup via http post request (= streaming)
-    log.info("Try http backup")
+    log.info("Try regular backup via http connection to odoo")
     try:
         result = ot.backup(s.db_name, backup_file, host=s.instance_local_url, master_pwd=s.master_password)
     except Exception as e:
         result = False
-        log.warning("Http streaming backup failed!\n%s" % repr(e))
+        log.warning("Http streaming backup failed! %s" % repr(e))
 
     # Try an alternative manual backup via file copy and pg_dump
     if not result:
         log.info("Try manual backup via database url and data_dir copy")
         try:
-            result = ot.backup_manual('TODO')
+            result = ot.backup_manual(db_url=s.db_url, data_dir=s.data_dir, backup_file=backup_file)
         except Exception as e:
             result = False
-            log.warning("Manual backup failed!\n%s" % repr(e))
+            log.error("Manual backup failed! %s" % repr(e))
 
     # Log result
     if result:
-        log.info("Backup of instance %s to %s done!" % (s.instance, backup_file))
+        log.info("Backup of instance %s to %s done!" % (s.instance, result))
     else:
         log.critical("Backup of instance %s to %s FAILED!" % (s.instance, backup_file))
+        return False
 
     # Return 'path to backup file' or False
     return result
@@ -488,8 +491,14 @@ def start(instance_dir, cmd_args=[], log_file=''):
 def fs_online():
     # BACKUP
     if known_args.backup:
-        return backup(known_args.instance_dir, backup_file=known_args.backup,
+        if known_args.backup is True:
+            known_args.backup = ''
+        result = backup(known_args.instance_dir, backup_file=known_args.backup,
                       odoo_cmd_startup_args=unknown_args, log_file=known_args.log_file)
+        if result:
+            exit(0)
+        else:
+            exit(100)
 
     # RESTORE
     if known_args.restore:
@@ -523,16 +532,19 @@ parser.add_argument('--verbose', help='Log Level',
 
 # Additional modes for this script
 parser.add_argument('--backup',
-                    metavar='Not set or /path/to/backup.zip',
+                    action='store_true',
+                    #metavar='Not set or /path/to/backup.zip',
                     help='Create a backup at the given file name! Will backup to default location '
                          '/[instance_dir]/backups/[backup_name] with default name if no backupfile is given!')
 
 parser.add_argument('--restore',
-                    metavar='/path/to/backup/backup.zip',
-                    help='Restore from backup folder OR file')
+                    action='store_true',
+                    #metavar='/path/to/backup/backup.zip',
+                    help='Restore from backup zip file or from folder')
 
 parser.add_argument('--update',
-                    metavar='Not set for latest commit OR Branch, Tag or SHA1',
+                    action='store_true',
+                    #metavar='Not set for latest commit OR Branch, Tag or SHA1',
                     help='Update the instance to latest commit of the instance repository on github.')
 
 # Set a default function to be called after the initialization of the parser object

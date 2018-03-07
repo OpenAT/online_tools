@@ -13,6 +13,7 @@ def get_sha1(path):
 
     # sha1 = shell(['git', 'rev-parse', 'HEAD'], cwd=path)
     sha1 = shell(['git', 'log', '-1', '--pretty="%H"'], cwd=path)
+    sha1 = sha1.strip().replace('"', '').replace("'", "")
 
     assert len(sha1) == 40, 'Wrong or missing SHA1 (%s) for git repo at %s!' % (sha1, path)
     return sha1
@@ -38,6 +39,7 @@ def get_submodule_sha1(path, submodule=str()):
 
     # Get SHA1 for submodule and check that it is 40 characters long!
     sha1 = submodules[submodule]
+    sha1 = sha1.strip()
     assert len(sha1) == 40, 'Wrong or missing SHA1 (%s) for submodule %s in %s!' % (sha1, submodule, path)
     return sha1
 
