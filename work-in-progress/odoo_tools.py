@@ -8,7 +8,7 @@ import base64
 from xmlrpclib import ServerProxy
 import zipfile
 
-from shell_tools import shell
+from shell_tools import shell, check_disk_space, test_zip
 
 from urlparse import urljoin
 import logging
@@ -22,7 +22,8 @@ def backup(database, backup_file, host='http://127.0.0.1:8069', master_pwd='admi
     assert os.access(os.path.dirname(backup_file), os.W_OK), 'Backup location %s not writeable!' % backup_file
     assert not os.path.exists(backup_file), "Backup file exists! (%s)" % backup_file
 
-    # TODO: Check free disk space
+    backup_dir = os.path.dirname(backup_file)
+    assert check_disk_space(backup_dir, min_free_mb=3000), "Less than 3GB free disk space at %s" % backup_dir
 
     # Start a stream backup via http
     url = urljoin(host, '/web/database/backup')
@@ -43,17 +44,40 @@ def backup(database, backup_file, host='http://127.0.0.1:8069', master_pwd='admi
             bf.write(chunk)
 
     # Verify the backup zip
-    log.info("Verify the zip archive at %s" % backup_file)
-    try:
-        backup_zip = zipfile.ZipFile(backup_file)
-        failed = backup_zip.testzip()
-        assert failed is None, "Damaged files in zip archive found! %s" % failed
-    except Exception as e:
-        log.error("Zip archive damaged!\n%s" % repr(e))
-        raise e
+    test_zip(backup_file)
 
     log.info("Backup successful!")
     return backup_file
+
+
+def restore(database, backup_zip_file, host='http://127.0.0.1:8069', master_pwd='admin'):
+    backup_zip_file = os.path.abspath(backup_zip_file)
+    log.info("Restore odoo backup from %s" % backup_zip_file)
+    assert os.path.isfile(backup_zip_file), "Backup zip file not found at %s" % backup_zip_file
+
+    # Verify the backup zip
+    test_zip(backup_zip_file)
+
+    # Try a http restore
+    # Start a stream backup via http
+    url = urljoin(host, '/web/database/restore')
+    payload = {'restore_pwd': master_pwd,
+               'new_db': database,
+               'mode': False}
+
+    log.info("Start restore POST request to %s" % url)
+    session = Session()
+    session.verify = True
+    try:
+        files = {'db_file': (backup_zip_file, open(backup_zip_file, 'rb'))}
+        response = session.post(url, data=payload, files=files, stream=True)
+        assert response and response.status_code == codes.ok, "Restore-response http status code != %s!" % codes.ok
+    except Exception as e:
+        log.error("Restore request failed! %s" % repr(e))
+        raise e
+
+    # Return True or False
+    return True
 
 
 def backup_manual(db_url='', data_dir='', backup_file=''):
@@ -70,10 +94,12 @@ def backup_manual(db_url='', data_dir='', backup_file=''):
     assert os.access(backup_dir, os.W_OK), 'Backup location %s not writeable!' % backup_file
     assert not os.path.exists(backup_file), "Backup file exists! (%s)" % backup_file
 
-    # TODO: Check free disk space
+    assert check_disk_space(backup_dir, min_free_mb=3000), "Less than 3GB free disk space at %s" % backup_dir
 
     # Create temporary backup folder
-    temp_dir_name = 'temp_' + os.path.splitext(os.path.basename(backup_file))[0]
+    backup_file_name = os.path.basename(backup_file)
+    temp_dir_name = 'temp_' + os.path.splitext(backup_file_name)[0]
+    assert len(temp_dir_name) > 5, "Temp backup directory name too short %s" % temp_dir_name
     temp_dir = os.path.join(backup_dir, temp_dir_name)
     log.info("Create temporary backup folder at %s" % temp_dir)
     os.makedirs(temp_dir)
@@ -87,10 +113,11 @@ def backup_manual(db_url='', data_dir='', backup_file=''):
     shutil.copytree(source_dir, target_dir)
 
     # Backup database via pg_dump
-    db_file = os.path.join(temp_dir, 'db.dump')
+    db_file = os.path.join(temp_dir, 'dump.sql')
     log.info("Backup database %s via pg_dump to %s" % (database, db_file))
     try:
-        shell(['pg_dump', '--format=c', '--no-owner', '--dbname=' + db_url, '--file=' + db_file], timeout=60*30)
+        shell(['pg_dump', '--format=p', '--no-owner', '--dbname=' + db_url, '--file=' + db_file],
+              log_info=False, timeout=60*30)
     except Exception as e:
         log.error("Database backup via pg_dump failed! %s" % repr(e))
         raise e
@@ -98,18 +125,11 @@ def backup_manual(db_url='', data_dir='', backup_file=''):
     # ZIP data in temp_dir
     if backup_file.endswith('.zip'):
         backup_file = backup_file.rsplit('.zip', 1)[0]
-    log.info("Create a zip archive at %s from temprary backup folder %s" % (backup_file, temp_dir))
+    log.info("Create a zip archive at %s from temporary backup folder %s" % (backup_file, temp_dir))
     backup_zip_file = shutil.make_archive(backup_file, 'zip', root_dir=temp_dir)
 
     # Verify Zip Archive
-    log.info("Verirfy zip archive at %s" % backup_zip_file)
-    try:
-        backup_zip = zipfile.ZipFile(backup_zip_file)
-        failed = backup_zip.testzip()
-        assert failed is None, "Damaged files in zip archive found! %s" % failed
-    except Exception as e:
-        log.error("Zip archive damaged!\n%s" % repr(e))
-        raise e
+    test_zip(backup_zip_file)
 
     # Remove Temp folder
     assert len(temp_dir) >= 12, "Temp directory seems to be wrong? %s" % temp_dir
@@ -119,3 +139,6 @@ def backup_manual(db_url='', data_dir='', backup_file=''):
     # Log and return result
     log.info("Manual Odoo backup of database %s to %s done!" % (database, backup_zip_file))
     return backup_zip_file
+
+
+

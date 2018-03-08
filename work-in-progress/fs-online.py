@@ -42,6 +42,9 @@ import shutil
 import time
 import datetime
 import zipfile
+import psycopg2
+from psycopg2.extensions import ISOLATION_LEVEL_AUTOCOMMIT
+from contextlib import closing
 from xmlrpclib import ServerProxy
 
 import logging
@@ -188,8 +191,8 @@ class Settings:
 
         # Check that the odoo core release tag matches the instance.ini core tag
         if self.instance_core_tag != self.core_tag:
-            msg = ("Core commit tag from instance.ini (%s) not matching tag for current commit in core dir (%s)!"
-                   "" % (self.instance_core_tag, self.core_tag))
+            msg = ("Core commit tag from instance.ini (%s) not matching core_tag (%s) for commit in core dir %s!"
+                   "" % (self.instance_core_tag, self.core_tag, self.instance_core_dir))
             if self.production_server:
                 raise Exception(msg)
             else:
@@ -244,6 +247,7 @@ class Settings:
         if not self.db_user:
             self.db_user = 'vagrant'
             self.startup_args.extend(['-r', self.db_user])
+        assert self.db_user != "postgres", "Database user can not be 'postgres' for security reasons!"
 
         self.db_password = sa[sa.index('-w')+1] if '-w' in sa else self.server_conf.get('db_password')
         if not self.db_password:
@@ -287,12 +291,36 @@ class Settings:
         if not self.data_dir:
             self.data_dir = pj(self.instance_dir, 'data_dir')
             self.startup_args.extend(['-D', self.data_dir])
+        self.data_dir = os.path.abspath(self.data_dir)
         assert os.path.isdir(self.data_dir), "Odoo data directory not found at %s!" % self.data_dir
 
-        # URLs
+        # filestore
+        filestore = os.path.join(self.data_dir, 'filestore', self.db_name)
+        self.filestore = filestore if os.path.isdir(filestore) else ''
+        assert filestore != '/', "Filestore path is '/'!"
+
+        # Instance URL
         self.instance_local_url = 'http://127.0.0.1:'+self.xmlrpc_port
+
+        # Database URL
         self.db_url = ('postgresql://' + self.db_user + ':' + self.db_password +
                        '@' + self.db_host + ':' + self.db_port + '/' + self.db_name)
+
+        # Instance database connection string for psycopg2
+        db_con_string = {
+            'dbname': self.db_name,
+            'user': self.db_user,
+            'password': self.db_password,
+            'host': self.db_host,
+            'port': self.db_port
+        }
+        self.db_con_string = " ".join(str(key)+"='"+str(value)+"'" for key, value in db_con_string.iteritems())
+
+        # postgres database connection string for psycopg2 (for dropping the instance db)
+        postgres_db_con_string = db_con_string
+        postgres_db_con_string['dbname'] = 'postgres'
+        self.postgres_db_con_string = " ".join(str(key)+"='"+str(value)+"'"
+                                               for key, value in postgres_db_con_string.iteritems())
 
 
 def _odoo_access_check(instance_dir, odoo_config=None):
@@ -380,47 +408,98 @@ def backup(instance_dir, backup_file='', odoo_cmd_startup_args=[], log_file=''):
     return result
 
 
-def restore(instance_dir, backup_to_restore):
-    begin_restore = time.time()
+def restore(instance_dir, backup_zip_file, odoo_cmd_startup_args=[], log_file='', backup_before_drop=False):
     instance_dir = os.path.abspath(instance_dir)
     instance = os.path.basename(instance_dir)
-    backup_to_restore = os.path.abspath(backup_to_restore)
+    backup_zip_file = os.path.abspath(backup_zip_file)
     logging.info('----------------------------------------')
     logging.info('RESTORE instance %s' % instance)
     logging.info('----------------------------------------')
-    assert os.path.exists(instance_dir), 'Instance not found at %s' % instance_dir
-    assert os.path.exists(backup_to_restore), 'Backup to restore not found at %s' % backup_to_restore
+    assert os.path.isdir(instance_dir), 'Instance directory not found at %s' % instance_dir
+    assert os.path.isfile(backup_zip_file), 'Backup zip file not found at %s' % backup_zip_file
 
-    # TODO: Test this code extensively
-    # Check if backup_to_restore is a custom backup
-    # HINT: If it is a folder it is always a custom backup
-    custom_backup = backup_to_restore if os.path.isdir(backup_to_restore) else None
-    if os.path.isfile(backup_to_restore):
-        assert zipfile.is_zipfile(backup_to_restore), 'Backup file must be a zip archive!'
-        with zipfile.ZipFile(backup_to_restore, "r") as archive:
-            # Check if the backup zip file is a custom backup
-            if 'dump.sql' not in archive.namelist():
-                # Extract custom backup zip file to temporary folder
-                custom_backup = os.path.splitext(backup_to_restore)[0]
-                logging.info('UnZipping custom backup to temporary folder %s' % custom_backup)
-                assert not os.path.exists(
-                    custom_backup), 'Folder to unzip custom backup already exists at %s' % custom_backup
-                archive.extractall(custom_backup)
+    # Load configuration
+    log.info("Prepare settings")
+    s = Settings(instance_dir, startup_args=odoo_cmd_startup_args, log_file=log_file)
 
-    # TODO: Restore through xmlrpc/odoo if odoo is accessible by xmlrpc and we have a native odoo backup
-    if not custom_backup and _odoo_access_check(instance_dir):
-        logging.info('Restoring native odoo backup by xmlrpc from %s' % backup_to_restore)
-        _odoo_restore(instance_dir, backup_to_restore)
-        return True
+    # Check if the database exists
+    log.info("Check if the database %s exists" % s.db_name)
+    try:
+        conn_instance_db = psycopg2.connect(s.db_con_string)
+        # Close the cursor again because we don't need it anymore
+        conn_instance_db.close()
+        db_exists = True
+        log.warning("Database %s exists already!" % s.db_name)
+    except Exception as e:
+        log.info("Could not connect to the postgresql database %s: %s" % (s.db_name, repr(e)))
+        db_exists = False
 
-    # TODO: Else manually restore
-    logging.info('Restoring custom backup from %s' % custom_backup)
-    # Stop Instance
-    # Restore Files
-    # Restore DB
-    # Start Instance
-    # Remove custom_backup folder if backup_to_restore is a file
+    # TODO: After debug set default value for backup_before_drop to True again: Backup before drop
+    # TODO: Only run if the database is not empty!
+    if db_exists and backup_before_drop:
+        log.info("Backup instance %s before we drop the database %s" % (s.instance, s.db_name))
+        pre_drop_backup_file = backup(instance_dir, odoo_cmd_startup_args=odoo_cmd_startup_args, log_file=log_file)
+        assert pre_drop_backup_file, "Could not create instance backup!"
+        log.info("Pre-restore instance backup created at %s" % pre_drop_backup_file)
 
+    # Connect to 'postgres' database (should always exist!)
+    try:
+        conn_postgres_db = psycopg2.connect(s.postgres_db_con_string)
+    except Exception as e:
+        log.critical("Could not connect to the 'postgres' database!")
+        raise e
+
+    # Drop or create the instance database
+    with closing(conn_postgres_db.cursor()) as cr:
+        # Set the isolation level to ISOLATION_LEVEL_AUTOCOMMIT before DROP/CREATE
+        # HINT: This is the same as: conn.autocommit = True
+        log.info("Set the database isolation level to ISOLATION_LEVEL_AUTOCOMMIT before drop")
+        conn_postgres_db.set_isolation_level(ISOLATION_LEVEL_AUTOCOMMIT)
+
+        # Drop instance database first
+        if db_exists:
+            log.info("Try to drop database %s" % s.db_name)
+            # Drop other database connections
+            log.info("Try to quit all other connections to the database %s before drop" % s.db_name)
+            try:
+                cr.execute("""SELECT pg_terminate_backend(pid)
+                              FROM pg_stat_activity
+                              WHERE pg_stat_activity.datname = '%s'
+                              AND pid != pg_backend_pid()""" % s.db_name)
+            except Exception as e:
+                log.warning("Dropping connections to database %s failed! %s" % (s.db_name, repr(e)))
+
+            # Drop database
+            log.warning("Dropping database %s" % s.db_name)
+            try:
+                cr.execute('DROP DATABASE "%s"' % s.db_name)
+            except Exception as e:
+                log.critical("Could not drop database %s! %s" % (s.db_name, repr(e)))
+                raise e
+
+        # Create instance database
+        # log.info("Try to create the database %s" % s.db_name)
+        # try:
+        #     cr.execute("""CREATE DATABASE %s
+        #                   WITH OWNER %s
+        #                   TEMPLATE template0
+        #                   ENCODING 'UTF8'""" % (s.db_name, s.db_user))
+        # except Exception as e:
+        #     log.critical("Could not create database %s!" % s.db_name)
+        #     raise e
+
+    # Remove old filestore directory
+    if os.path.isdir(s.filestore):
+        log.warning("Remove existing filestore at %s" % s.filestore)
+        shutil.rmtree(s.filestore)
+
+    # Restore via odoo (http connection)
+    log.info("Restore odoo backup by http request")
+    ot.restore(s.db_name, backup_zip_file, host=s.instance_local_url, master_pwd=s.master_password)
+
+    # TODO: Manual restore via pg_dump and file copy
+
+    # Return result
     return True
 
 
@@ -491,10 +570,12 @@ def start(instance_dir, cmd_args=[], log_file=''):
 def fs_online():
     # BACKUP
     if known_args.backup:
+        # If backup files is not set set it to an empty string
         if known_args.backup is True:
             known_args.backup = ''
+
         result = backup(known_args.instance_dir, backup_file=known_args.backup,
-                      odoo_cmd_startup_args=unknown_args, log_file=known_args.log_file)
+                        odoo_cmd_startup_args=unknown_args, log_file=known_args.log_file)
         if result:
             exit(0)
         else:
@@ -502,7 +583,9 @@ def fs_online():
 
     # RESTORE
     if known_args.restore:
-        # TODO
+        assert known_args.restore, "No backup file given!"
+        restore(known_args.instance_dir, backup_zip_file=known_args.restore,
+                odoo_cmd_startup_args=unknown_args, log_file=known_args.log_file)
         exit(0)
 
     # UPDATE
@@ -524,8 +607,9 @@ parser = argparse.ArgumentParser()
 parser.add_argument('instance_dir', help="Instance directory")
 parser.add_argument('--log_file',
                     metavar='Not set for STDOUT or /path/log_file.log',
-                    help='Log file for this script! If --logfile is not given for odoo and also no logfile'
-                         ' for odoo is found in server.conf this log_file is also used for odoo logging.')
+                    help='Log file for this script and odoo. Emtpy for stdout. '
+                         'Add "--logfile=/path/too/odoo.log" or add "logfile = /path/too/odoo.log" to server.conf '
+                         'if you want a separate log-file for the odoo log messages.')
 parser.add_argument('--verbose', help='Log Level',
                     choices=['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'],
                     default='INFO')
@@ -533,18 +617,19 @@ parser.add_argument('--verbose', help='Log Level',
 # Additional modes for this script
 parser.add_argument('--backup',
                     action='store_true',
-                    #metavar='Not set or /path/to/backup.zip',
+                    #default='',
+                    #metavar='EMTPY or /path/to/backup.zip',
                     help='Create a backup at the given file name! Will backup to default location '
-                         '/[instance_dir]/backups/[backup_name] with default name if no backupfile is given!')
+                         '/[instance_dir]/update/[backupname.zip] if no backupfile is given!')
 
 parser.add_argument('--restore',
-                    action='store_true',
-                    #metavar='/path/to/backup/backup.zip',
-                    help='Restore from backup zip file or from folder')
+                    metavar='/path/to/backup/backup.zip',
+                    help='Restore from backup zip or from folder')
 
 parser.add_argument('--update',
                     action='store_true',
-                    #metavar='Not set for latest commit OR Branch, Tag or SHA1',
+                    #default='',
+                    #metavar='EMPTY for latest commit OR Branch, Tag or SHA1 e.g.: --update=o8r168',
                     help='Update the instance to latest commit of the instance repository on github.')
 
 # Set a default function to be called after the initialization of the parser object
