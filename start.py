@@ -886,7 +886,7 @@ def _odoo_restore(backup_dir, conf, data_dir_target='', database_target_url=''):
         raise Exception('CRITICAL: Drop (and create) database failed!%s' % pp(e))
     try:
         # Restore the database (HINT: Don't use --clean!)
-        shell(database_restore_cmd, timeout=600)
+        shell(database_restore_cmd, timeout=1800)
     except (Exception, subprocess32.TimeoutExpired) as e:
         raise Exception('CRITICAL: Restore database failed!%s' % pp(e))
 
