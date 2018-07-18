@@ -18,18 +18,19 @@ import smtplib
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 
+# ATTENTION: Import certs will cause a segmentation fault in ubuntu14.04 out of nowhere ?!? Therefore deactivated!
 # requests ca-cert bundle
 # By default it is taken from /usr/local/lib/python2.7/dist-packages/requests/cacert.pem
 # From 2.16 and up requests will take the ca-bundle from certify if installed: check certs.py
 # https://stackoverflow.com/questions/31448854/how-to-force-requests-use-the-certificates-on-my-ubuntu-system
 # https://incognitjoe.github.io/adding-certs-to-requests.html
-try:
-    from requests import certs
-    requests_ca_bundle_path = certs.where()
-    print 'python request library ca-bundle path: %s' % requests_ca_bundle_path
-except Exception as e:
-    print "WARNING: could not run certs.where() %s" % repr(e)
-    pass
+# try:
+#     from requests import certs
+#     requests_ca_bundle_path = certs.where()
+#     print 'python request library ca-bundle path: %s' % requests_ca_bundle_path
+# except Exception as e:
+#     print "WARNING: could not run certs.where() %s" % repr(e)
+#     pass
 
 
 # ATTENTION: Version 2.3 is so old that it will not even recognise the REQUESTS_CA_BUNDLE env variable :(
