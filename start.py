@@ -16,7 +16,7 @@ import datetime
 import smtplib
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
-
+from requests import certs
 
 def retry(ExceptionToCheck, tries=4, delay=3, backoff=2, logger=None):
     """Retry calling the decorated function using an exponential backoff.
@@ -405,7 +405,12 @@ def _odoo_config(instance_path):
     # Make sure addons-path is NOT! in the config file or command line since we calculate them.
     assert 'addons_path' not in cnf, "CRITICAL: addons_path found in config file! Please remove it!"
     assert '--addons_path' not in sys.argv, "CRITICAL: --addons_path found! Please remove it!"
+
+
     cnf['addons_reldirs'] = ['openerp/addons', 'addons', '../addons-loaded', ]
+    if os.path.isdir('../addons-loaded/openerp'):
+        cnf['addons_reldirs'] = ['openerp/addons', 'addons', '../addons-loaded/openerp/addons', ]
+
     cnf['addons_instance_dir'] = pj(cnf['instance_dir'], 'addons')
     cnf['addons_path'] = list(cnf['addons_reldirs']) + [cnf['addons_instance_dir'], ]
     cnf['addons_path_csv'] = ",".join([str(item) for item in cnf['addons_path']])
@@ -531,26 +536,26 @@ def _odoo_update_config(cnf):
 
         # latest core.ini
         # ATTENTION: core.ini is optional!
-        core_update = dict()
-        if os.path.exists(pj(cnf['latest_core_dir'], 'core.ini')):
-            try:
-                core_update = ConfigParser.SafeConfigParser()
-                core_update.read(pj(cnf['latest_core_dir'], 'core.ini'))
-                core_update = dict(core_update.items('options'))
-            except Exception as e:
-                _finish_update(cnf, error="CRITICAL: Could not read core.ini!" + pp(e))
+        # core_update = dict()
+        # if os.path.exists(pj(cnf['latest_core_dir'], 'core.ini')):
+        #     try:
+        #         core_update = ConfigParser.SafeConfigParser()
+        #         core_update.read(pj(cnf['latest_core_dir'], 'core.ini'))
+        #         core_update = dict(core_update.items('options'))
+        #     except Exception as e:
+        #         _finish_update(cnf, error="CRITICAL: Could not read core.ini!" + pp(e))
 
         # Forced addons to install or update for the CORE
         cnf['latest_core_install_addons'] = []
         cnf['latest_core_update_addons'] = []
-        if cnf['core'] != cnf['latest_core']:
-            try:
-                if core_update.get('install_addons') != 'False':
-                    cnf['latest_core_install_addons'] = filter(None, core_update.get('install_addons', '').split(','))
-                if core_update.get('update_addons') != 'False':
-                    cnf['latest_core_update_addons'] = filter(None, core_update.get('update_addons', '').split(','))
-            except Exception as e:
-                _finish_update(cnf, error="CRITICAL: Could not set latest_core_[install/update]_addons!" + pp(e))
+        # if cnf['core'] != cnf['latest_core']:
+        #     try:
+        #         if core_update.get('install_addons') != 'False':
+        #             cnf['latest_core_install_addons'] = filter(None, core_update.get('install_addons', '').split(','))
+        #         if core_update.get('update_addons') != 'False':
+        #             cnf['latest_core_update_addons'] = filter(None, core_update.get('update_addons', '').split(','))
+        #     except Exception as e:
+        #         _finish_update(cnf, error="CRITICAL: Could not set latest_core_[install/update]_addons!" + pp(e))
 
         # All forced addons to update and install
         cnf['addons_to_install'] = cnf['latest_core_install_addons'] + cnf['latest_install_addons']
@@ -791,10 +796,13 @@ def _get_cores(conf):
     return True
 
 
-def _odoo_backup(conf, backup_target=None):
+def _odoo_backup(conf, backup_target=None, stop_after_backup=False):
     print "\nBACKUP"
-    # Create folder to backup into
-    backup_target = backup_target or conf['backup']
+
+    # Create backup target folder
+    manual_backup_target = pj(conf['backup_dir'], conf['db_name'] + '-manual_backup-' + conf['start_time'])
+    backup_target = backup_target or conf.get('backup', None) or manual_backup_target
+
     try:
         os.makedirs(backup_target)
     except Exception as e:
@@ -816,11 +824,16 @@ def _odoo_backup(conf, backup_target=None):
         raise Exception('CRITICAL: Backup of database failed!%s' % pp(e))
 
     print 'BACKUP done!\n'
+
+    if stop_after_backup:
+        print 'Stop after backup set! Exiting Script\n'
+        exit(0)
+
     return backup_target
 
 
 @retry(Exception, tries=3)
-def _odoo_restore(backup_dir, conf, data_dir_target='', database_target_url=''):
+def _odoo_restore(backup_dir, conf, data_dir_target='', database_target_url='', stop_after_restore=False):
     # database
     database_source = pj(backup_dir, 'db.dump')
     database_target_url = database_target_url or conf['db_url']
@@ -891,6 +904,11 @@ def _odoo_restore(backup_dir, conf, data_dir_target='', database_target_url=''):
         raise Exception('CRITICAL: Restore database failed!%s' % pp(e))
 
     print 'RESTORE done!\n'
+
+    if stop_after_restore:
+        print "Stop after restore set! Exiting script!"
+        exit(0)
+
     return True
 
 
@@ -961,7 +979,11 @@ def _addons_to_update(conf):
     if conf['core'] != conf['latest_core']:
         odoo_base_addons = pj(conf['latest_core_dir'], 'odoo/openerp/addons')
         odoo_addons = pj(conf['latest_core_dir'], 'odoo/addons')
+
         loaded_addons = pj(conf['latest_core_dir'], 'addons-loaded')
+        if os.path.isdir(pj(loaded_addons, 'openerp')):
+            loaded_addons = pj(loaded_addons, 'openerp/addons')
+
         changed_files = _changed_files(conf['latest_core_dir'], conf['core'], conf['latest_core'])
         updates, langupdates = _find_addons_byfile(changed_files, stop=[conf['latest_core_dir'], ])
         for addon in _find_addons_inpaths([odoo_base_addons, odoo_addons, loaded_addons]):
@@ -1293,9 +1315,9 @@ if __name__ == "__main__":
     if '--backup' in sys.argv:
         print '\n---- Starting backup (--backup given)'
         try:
-            _odoo_backup(odoo_config)
-        except:
-            print 'ERROR: --backup given but could not create the backup!'
+            _odoo_backup(odoo_config, stop_after_backup=True)
+        except Exception as e:
+            print 'ERROR: --backup given but could not create the backup!\n%s' % repr(e)
         sys.argv.remove('--backup')
 
     # Restore a backup from folder (expects "data_dir" folder and "db.dump" file inside restore folder)
@@ -1304,12 +1326,12 @@ if __name__ == "__main__":
         if odoo_config['production_server']:
             try:
                 _service_control(odoo_config['instance'], running=False)
-                _odoo_restore(sys.argv[sys.argv.index('--restore') + 1], odoo_config)
+                _odoo_restore(sys.argv[sys.argv.index('--restore') + 1], odoo_config, stop_after_restore=True)
             except:
                 print "ERROR: Could not stop service before restore!"
         else:
             print "WARNING: Development server found! Stopping the service skipped!"
-            _odoo_restore(sys.argv[sys.argv.index('--restore') + 1], odoo_config)
+            _odoo_restore(sys.argv[sys.argv.index('--restore') + 1], odoo_config, stop_after_restore=True)
         sys.argv.pop(sys.argv.index('--restore') + 1)
         sys.argv.remove('--restore')
 
@@ -1341,6 +1363,24 @@ if __name__ == "__main__":
         print 'Working directory set to: %s' % os.getcwd()
         print "PYTHONPATH: %s" % os.environ.get("PYTHONPATH", "")
         print "WORKING_DIRECTORY: %s" % os.environ.get("WORKING_DIRECTORY", "")
+
+        # requests ca-cert bundle
+        # By default it is taken from /usr/local/lib/python2.7/dist-packages/requests/cacert.pem
+        # From 2.16 and up requests will take the ca-bundle from certify if installed: check certs.py
+        # https://stackoverflow.com/questions/31448854/how-to-force-requests-use-the-certificates-on-my-ubuntu-system
+        # https://incognitjoe.github.io/adding-certs-to-requests.html
+        try:
+            requests_ca_bundle_path = certs.where()
+            print 'python request library ca-bundle path: %s' % requests_ca_bundle_path
+        except:
+            print "WARNING: could not run certs.where()"
+        # ATTENTION: Version 2.3 is so old that it will not even recognise the REQUESTS_CA_BUNDLE env variable :(
+        #            therefore we need to do it by saltstack with an symbolic link - check the o
+        # ca_bundle = os.path.join('/etc/ssl/certs/', 'ca-certificates.crt')
+        # if os.path.isfile(ca_bundle):
+        #     os.environ['REQUESTS_CA_BUNDLE'] = ca_bundle
+        #     print 'Environment var REQUESTS_CA_BUNDLE set to %s for python request library' % ca_bundle
+        #     print 'python -m requests.certs >>> %s'
 
         # Disable evented mode for debugging
         # if sys.gettrace() != None or int(odoo_config['workers']) <= 1:
