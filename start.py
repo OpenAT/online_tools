@@ -316,7 +316,7 @@ def _odoo_config(instance_path):
     # Production Server?
     print "Check for Production Server"
     cnf['production_server'] = False
-    if _service_exists(cnf['instance']):
+    if _service_exists(cnf['instance']) and '/opt/online' in instance_path:
         cnf['production_server'] = True
         print "Production server found"
 
