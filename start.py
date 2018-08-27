@@ -1090,7 +1090,6 @@ def _finish_update(conf, success=str(), error=str(), restore_failed='False'):
         print "%s\n---------- UPDATE DONE! ----------" % success
     if error:
         print "%s\n---------- ERROR: UPDATE FAILED! ----------" % error
-        # TODO: Send Info E-Mail to admin@datadialog.net
 
     # Send Info E-Mail to admin@datadialog.net
     try:
@@ -1286,7 +1285,7 @@ def _odoo_update(conf):
             if _service_control(conf['instance'], running=True):
                 _finish_update(conf, success='Final update successful and instance UP!\n')
             else:
-                _finish_update(conf, success='WARNING: Final update successful but instance DOWN!\n')
+                _finish_update(conf, error='WARNING: Final update successful but instance DOWN!\n')
 
         except Exception as e:
             print "\nCRITICAL: Final update on production instance failed! %s" % pp(e)
@@ -1308,7 +1307,7 @@ def _odoo_update(conf):
             # Restore successful after failed update
             print "\nStart service %s" % conf['instance']
             if _service_control(conf['instance'], running=True):
-                _finish_update(conf, success='ERROR: UPDATE failed! Restore successful! Instance UP!\n')
+                _finish_update(conf, error='ERROR: UPDATE failed! Restore successful! Instance UP!\n')
             else:
                 _finish_update(conf, error='CRITICAL: UPDATE failed! Restore successful! Instance DOWN!\n')
 
