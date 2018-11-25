@@ -1148,6 +1148,9 @@ def _compare_urls(url1, url2, wanted_simmilarity=1.0):
 
 def _odoo_update(conf):
     print '\n---------- UPDATE START %s ----------' % conf['start_time']
+    timeout_for_updates = 10800
+    print '\ntimeout_for_updates: %s sec' % timeout_for_updates
+
 
     # 1.) No Changes at all
     if conf['commit'] == conf['latest_commit']:
@@ -1210,7 +1213,7 @@ def _odoo_update(conf):
             print '%s%s' % ('Addons to update: ', conf['addons_to_update_csv'])
             args = ['--stop-after-init', ]
             args += ['-u', conf['addons_to_update_csv']]
-            shell(odoo_server + conf['latest_startup_args'] + args, cwd=odoo_cwd, timeout=3600,
+            shell(odoo_server + conf['latest_startup_args'] + args, cwd=odoo_cwd, timeout=timeout_for_updates,
                   user_name=conf['instance'])
 
         # Install addons in the dry-run instance
@@ -1219,7 +1222,7 @@ def _odoo_update(conf):
             print '%s%s' % ('Addons to install: ', conf['addons_to_install_csv'])
             args = ['--stop-after-init', ]
             args += ['-i', conf['addons_to_install_csv']]
-            shell(odoo_server + conf['latest_startup_args'] + args, cwd=odoo_cwd, timeout=3600,
+            shell(odoo_server + conf['latest_startup_args'] + args, cwd=odoo_cwd, timeout=timeout_for_updates,
                   user_name=conf['instance'])
     except Exception as e:
         return _finish_update(conf, error='CRITICAL: Update dry-run failed!' + pp(e))
@@ -1270,15 +1273,15 @@ def _odoo_update(conf):
             if conf['addons_to_update_csv']:
                 print '\n-- Updating the production database. (Please be patient)'
                 print '%s%s' % ('Addons to update: ', conf['addons_to_update_csv'])
-                shell(odoo_server + ['-u', conf['addons_to_update_csv']] + args, cwd=odoo_cwd, timeout=3600,
-                      user_name=conf['instance'])
+                shell(odoo_server + ['-u', conf['addons_to_update_csv']] + args, cwd=odoo_cwd,
+                      timeout=timeout_for_updates, user_name=conf['instance'])
 
             # Install addons in productive instance
             if conf['addons_to_install_csv']:
                 print '\n-- Install addons in the production database. (Please be patient)'
                 print '%s%s' % ('Addons to install: ', conf['addons_to_install_csv'])
-                shell(odoo_server + ['-i', conf['addons_to_install_csv']] + args, cwd=odoo_cwd, timeout=3600,
-                      user_name=conf['instance'])
+                shell(odoo_server + ['-i', conf['addons_to_install_csv']] + args, cwd=odoo_cwd,
+                      timeout=timeout_for_updates, user_name=conf['instance'])
 
             # Update successful
             print "\nUpdate successful!\nStart service %s" % conf['instance']
