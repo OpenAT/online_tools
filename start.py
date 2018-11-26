@@ -584,8 +584,14 @@ def _odoo_update_config(cnf):
         # All forced addons to update and install
         cnf['addons_to_install'] = cnf['latest_core_install_addons'] + cnf['latest_install_addons']
         cnf['addons_to_install_csv'] = ",".join([str(item) for item in cnf['addons_to_install']])
+
         cnf['addons_to_update'] = cnf['latest_core_update_addons'] + cnf['latest_update_addons']
-        cnf['addons_to_update_csv'] = ",".join([str(item) for item in cnf['addons_to_update']])
+
+        # ATTENTION: if more than 6 addons changed we do a -u all ;)
+        if len(cnf['addons_to_update']) <= 6:
+            cnf['addons_to_update_csv'] = ",".join([str(item) for item in cnf['addons_to_update']])
+        else:
+            cnf['addons_to_update_csv'] = "all"
 
         # Startup Args
         cnf['latest_startup_args'] = ['-d', cnf['latest_db_name'],
