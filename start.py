@@ -214,6 +214,9 @@ def _git_latest(target_path, repo, commit='o8', user_name=None, pull=False):
         # Git repo exists already
         devnull = open(os.devnull, 'w')
         try:
+            print "Fetch latest data and tags %s, " % target_path
+            shell(['git', 'fetch', '--tags'],
+                  cwd=target_path, timeout=120, stderr=devnull, user_name=user_name)
             # ATTENTION: originally it was -xfdf but i remove the x to not delete the files excluded by .gitignore
             #            so the copy core lock file will not be removed any more
             print "Force-Clean git repo in %s, " % target_path
