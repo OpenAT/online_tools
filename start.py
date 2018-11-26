@@ -586,12 +586,7 @@ def _odoo_update_config(cnf):
         cnf['addons_to_install_csv'] = ",".join([str(item) for item in cnf['addons_to_install']])
 
         cnf['addons_to_update'] = cnf['latest_core_update_addons'] + cnf['latest_update_addons']
-
-        # ATTENTION: if more than 6 addons changed we do a -u all ;)
-        if len(cnf['addons_to_update']) <= 6:
-            cnf['addons_to_update_csv'] = ",".join([str(item) for item in cnf['addons_to_update']])
-        else:
-            cnf['addons_to_update_csv'] = "all"
+        cnf['addons_to_update_csv'] = ",".join([str(item) for item in cnf['addons_to_update']])
 
         # Startup Args
         cnf['latest_startup_args'] = ['-d', cnf['latest_db_name'],
@@ -1167,7 +1162,11 @@ def _odoo_update(conf):
         print 'Search for addons to update.'
         addons_to_update = _addons_to_update(conf)[0]
         if addons_to_update:
-            conf['addons_to_update_csv'] = ",".join([str(item) for item in conf['addons_to_update'] + addons_to_update])
+            if len(addons_to_update) <= 6:
+                conf['addons_to_update_csv'] = ",".join([str(item) for item in conf['addons_to_update'] + addons_to_update])
+            else:
+                print 'More than 6 addons to update found! Using "all" instead of the individual addons list!'
+                conf['addons_to_update_csv'] = "all"
     except Exception as e:
         return _finish_update(conf, error='CRITICAL: Search for addons to update failed!' + pp(e))
 
