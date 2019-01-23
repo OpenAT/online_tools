@@ -496,6 +496,7 @@ def _odoo_update_config(cnf):
         while delay_update and delay_update_counter <= 20:
             update_lock_file_counter = 0
             for root, subFolders, files in os.walk(cnf.get('root_dir', "/opt/online")):
+                print "Searching for update.lock file in root: %s" % root
                 if 'update.lock' in files:
                     update_lock_file_counter = update_lock_file_counter + 1
             if update_lock_file_counter > 3:
