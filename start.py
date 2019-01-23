@@ -316,6 +316,7 @@ def _odoo_config(instance_path):
     cnf = dict()
     cnf['instance'] = os.path.basename(instance_path)
     cnf['start_time'] = str(time.strftime('%Y-%m-%d_%H-%M-%S'))
+
     # Production Server?
     print "Check for Production Server"
     cnf['production_server'] = False
@@ -391,7 +392,9 @@ def _odoo_config(instance_path):
     assert os.path.exists(cnf['root_dir']), 'CRITICAL: root_dir not found! %s ' % cnf['root_dir']
 
     # Directories
-    cnf['core_dir'] = pj(cnf['root_dir'], 'online_' + cnf['core'])
+    # ATTENTION!: To be able to mount the cores from an file server we moved them to /opt/online/cores
+    cnf['core_dir'] = pj(cnf['root_dir'], 'cores/online_' + cnf['core'])
+
     cnf['instance_dir'] = instance_path
     cnf['data_dir'] = cnf.get('data_dir', pj(cnf['instance_dir'], 'data_dir'))
     cnf['backup_dir'] = pj(cnf['instance_dir'], 'update')
@@ -432,7 +435,6 @@ def _odoo_config(instance_path):
     # Make sure addons-path is NOT! in the config file or command line since we calculate them.
     assert 'addons_path' not in cnf, "CRITICAL: addons_path found in config file! Please remove it!"
     assert '--addons_path' not in sys.argv, "CRITICAL: --addons_path found! Please remove it!"
-
 
     cnf['addons_reldirs'] = ['openerp/addons', 'addons', '../addons-loaded', ]
     if os.path.isdir('../addons-loaded/openerp'):
@@ -561,7 +563,9 @@ def _odoo_update_config(cnf):
         instance_latest.read(pj(cnf['latest_inst_dir'], 'instance.ini'))
         instance_latest = dict(instance_latest.items('options'))
         cnf['latest_core'] = instance_latest.get('core')
-        cnf['latest_core_dir'] = pj(cnf['root_dir'], 'online_' + cnf['latest_core'])
+
+        # ATTENTION: cores where moved to folder cores to be able to mount them!
+        cnf['latest_core_dir'] = pj(cnf['root_dir'], 'cores/online_' + cnf['latest_core'])
 
         # Forced addons to install or update for the INSTANCE
         cnf['latest_install_addons'] = []
