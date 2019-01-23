@@ -478,7 +478,7 @@ def _odoo_update_config(cnf):
         # Backup path and filename
         cnf['backup'] = pj(cnf['backup_dir'], cnf['db_name'] + '-pre-update_backup-' + cnf['start_time'])
 
-        # Check if an update is already running
+        # Check if an concurrent update is already running for this instance
         cnf['update_lock_file'] = pj(cnf['instance_dir'], 'update.lock')
         counter = 0
         while os.path.isfile(cnf['update_lock_file']):
@@ -487,6 +487,24 @@ def _odoo_update_config(cnf):
             counter += 1
             assert counter <= 20, 'CRITICAL: Concurrent update still running after 20 min! Please check %s .' \
                                   '' % cnf['update_lock_file']
+
+        # Check if more than two other updates are already running on this server
+        print "Check if more than two other updates are already running on this server"
+        # Find all update.lock files in /opt/online
+        delay_update = True
+        delay_update_counter = 0
+        while delay_update and delay_update_counter <= 20:
+            update_lock_file_counter = 0
+            for root, subFolders, files in os.walk(cnf.get('root_dir', "/opt/online")):
+                if 'update.lock' in files:
+                    update_lock_file_counter = update_lock_file_counter + 1
+            if update_lock_file_counter > 3:
+                print "More than two other updates are currently running! Retry in 60 seconds!"
+                delay_update_counter = delay_update_counter + 1
+                sleep(60)
+            else:
+                print "Less than two other updates are currently running! Continue with this update!"
+                delay_update = False
 
         # Stop update if ...
         if cnf['update_failed'] != 'False' or cnf['no_update'] != 'False' \
@@ -1154,7 +1172,6 @@ def _odoo_update(conf):
     print '\n---------- UPDATE START %s ----------' % conf['start_time']
     timeout_for_updates = 10800
     print '\ntimeout_for_updates: %s sec' % timeout_for_updates
-
 
     # 1.) No Changes at all
     if conf['commit'] == conf['latest_commit']:
