@@ -1234,6 +1234,10 @@ def _odoo_update(conf):
         # Restore backup
         _odoo_restore(backup, conf, data_dir_target=conf['latest_data_dir'], database_target_url=conf['latest_db_url'])
 
+        # TODO - For development add correct python interpreter
+        print('PYTHON INTERPRETER: ' + sys.executable)
+        python_exec = [str(sys.executable), ]
+
         # Server Script and command working directory
         odoo_server = [pj(conf['latest_core_dir'], 'odoo/openerp-server'), ]
         odoo_cwd = pj(conf['latest_core_dir'], 'odoo')
@@ -1244,7 +1248,7 @@ def _odoo_update(conf):
             print '%s%s' % ('Addons to update: ', conf['addons_to_update_csv'])
             args = ['--stop-after-init', ]
             args += ['-u', conf['addons_to_update_csv']]
-            shell(odoo_server + conf['latest_startup_args'] + args, cwd=odoo_cwd, timeout=timeout_for_updates,
+            shell(python_exec + odoo_server + conf['latest_startup_args'] + args, cwd=odoo_cwd, timeout=timeout_for_updates,
                   user_name=conf['instance'])
 
         # Install addons in the dry-run instance
