@@ -670,7 +670,9 @@ def _get_cores(conf):
                 if configuration['root_dir'] in path:
                     try:
                         print "Set correct user and rights for core in path %s" % path
-                        shell(['chown', '-R', 'root:root', path], cwd=path, timeout=60)
+                        # DISABLED! because it makes no sence for the cores directory
+                        # shell(['chown', '-R', 'cores:cores', path], cwd=path, timeout=60)
+
                         # Make sure others can read(use) the core and its files too
                         # HINT: This should be ok already in the core in Github!
                         shell(['chmod', '-R', 'o=rX', path], cwd=path, timeout=60)
