@@ -669,7 +669,7 @@ def _get_cores(conf):
                 path = str(path)
                 if configuration['root_dir'] in path:
                     try:
-                        print "Set correct user and rights for core in path %s" % path
+                        print "Set correct rights for core in path %s" % path
                         # DISABLED! because it makes no sence for the cores directory
                         # shell(['chown', '-R', 'cores:cores', path], cwd=path, timeout=60)
 
@@ -1188,6 +1188,8 @@ def _compare_urls(url1, url2, wanted_simmilarity=1.0):
 
 def _odoo_update(conf):
     print '\n---------- UPDATE START %s ----------' % conf['start_time']
+
+    # Set Timeout
     timeout_for_updates = 10800
     print '\ntimeout_for_updates: %s sec' % timeout_for_updates
 
@@ -1247,7 +1249,7 @@ def _odoo_update(conf):
         _odoo_restore(backup, conf, data_dir_target=conf['latest_data_dir'], database_target_url=conf['latest_db_url'])
 
         # TODO - For development add correct python interpreter
-        print('PYTHON INTERPRETER: ' + sys.executable)
+        print('Python interpreter for the updates (sys.executable): ' + str(sys.executable))
         python_exec = [str(sys.executable), ]
 
         # Server Script and command working directory
@@ -1269,7 +1271,7 @@ def _odoo_update(conf):
             print '%s%s' % ('Addons to install: ', conf['addons_to_install_csv'])
             args = ['--stop-after-init', ]
             args += ['-i', conf['addons_to_install_csv']]
-            shell(odoo_server + conf['latest_startup_args'] + args, cwd=odoo_cwd, timeout=timeout_for_updates,
+            shell(python_exec + odoo_server + conf['latest_startup_args'] + args, cwd=odoo_cwd, timeout=timeout_for_updates,
                   user_name=conf['instance'])
     except Exception as e:
         return _finish_update(conf, error='CRITICAL: Update dry-run failed!' + pp(e))
@@ -1320,14 +1322,14 @@ def _odoo_update(conf):
             if conf['addons_to_update_csv']:
                 print '\n-- Updating the production database. (Please be patient)'
                 print '%s%s' % ('Addons to update: ', conf['addons_to_update_csv'])
-                shell(odoo_server + ['-u', conf['addons_to_update_csv']] + args, cwd=odoo_cwd,
+                shell(python_exec + odoo_server + ['-u', conf['addons_to_update_csv']] + args, cwd=odoo_cwd,
                       timeout=timeout_for_updates, user_name=conf['instance'])
 
             # Install addons in productive instance
             if conf['addons_to_install_csv']:
                 print '\n-- Install addons in the production database. (Please be patient)'
                 print '%s%s' % ('Addons to install: ', conf['addons_to_install_csv'])
-                shell(odoo_server + ['-i', conf['addons_to_install_csv']] + args, cwd=odoo_cwd,
+                shell(python_exec + odoo_server + ['-i', conf['addons_to_install_csv']] + args, cwd=odoo_cwd,
                       timeout=timeout_for_updates, user_name=conf['instance'])
 
             # Update successful
@@ -1384,6 +1386,17 @@ if __name__ == "__main__":
     print "Get the odoo config"
     odoo_config = _odoo_config(instance_dir)
 
+    # Show the python interpreter at start before path change
+    print "Python interpreter at start before path change (sys.executable): %s" % str(sys.executable)
+
+    # Change path to correct core and folder odoo
+    print "Change working directory to %s" % pj(odoo_config['core_dir'], 'odoo')
+    sys.path[0] = sys.argv[0] = pj(odoo_config['core_dir'], 'odoo')
+    os.chdir(sys.path[0])
+
+    # Show the python interpreter at start after path change
+    print "Python interpreter at start after path change (sys.executable): %s" % str(sys.executable)
+
     # Create a backup
     if '--backup' in sys.argv:
         print '\n---- Starting backup (--backup given)'
@@ -1432,7 +1445,7 @@ if __name__ == "__main__":
         # Change path to correct core and folder odoo
         sys.path[0] = sys.argv[0] = pj(odoo_config['core_dir'], 'odoo')
         os.chdir(sys.path[0])
-        print "Python Interpreter (sys.executable): %s" % str(sys.executable)
+        print "Python Interpreter at odoo start (sys.executable): %s" % str(sys.executable)
         print 'sys.path[0] and sys.argv[0] set to: %s' % sys.path[0]
         print 'Working directory set to: %s' % os.getcwd()
         print "PYTHONPATH: %s" % os.environ.get("PYTHONPATH", "")
