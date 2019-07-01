@@ -816,7 +816,7 @@ def _get_cores(conf):
             statvfs = os.statvfs(conf['core_dir'])
             free_bytes = statvfs.f_frsize * statvfs.f_bavail
             free_gbyte = free_bytes / 1000000000
-            assert free_gbyte >= 6, "CRITICAL: Free disk space is less than 3 GB in %s" % conf['core_dir']
+            assert free_gbyte >= 6, "CRITICAL: Free disk space is less than 6 GB in %s" % conf['core_dir']
             print "%sGB free disk space in %s" % (free_gbyte, conf['core_dir'])
 
             # Update and clean current core
@@ -1432,6 +1432,7 @@ if __name__ == "__main__":
         # Change path to correct core and folder odoo
         sys.path[0] = sys.argv[0] = pj(odoo_config['core_dir'], 'odoo')
         os.chdir(sys.path[0])
+        print "Python Interpreter (sys.executable): %s" % str(sys.executable)
         print 'sys.path[0] and sys.argv[0] set to: %s' % sys.path[0]
         print 'Working directory set to: %s' % os.getcwd()
         print "PYTHONPATH: %s" % os.environ.get("PYTHONPATH", "")
