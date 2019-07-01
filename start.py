@@ -774,40 +774,50 @@ def _get_cores(conf):
             assert os.path.isfile(core_copy_lock), 'CRITICAL: Could not create core_copy_lock file %s' \
                                                    '' % core_copy_lock
 
+            # DISABLED SINCE WE USE THE SHARED CORE FOLDER NOW ON ALL ONLINE* HOSTS WHICH MEANS WE DO NOT KNOW WHICH
+            #          WHICH CORES ARE NEEDED ON A SINGLE HOST! THE CLEANUP CAN THEREFORE ONLY BE DONE BY SALT
             # Remove old and unused cores
             # ATTENTION: We already downloaded the latest instance.ini before we reach this point ;)
             # Search for all instance.ini files and extract the cores
-            print "Remove unused cores"
-            needed_cores = []
-            for root, subFolders, files in os.walk(root_dir):
-                if 'instance.ini' in files:
-                    instance_cfg = ConfigParser.SafeConfigParser()
-                    instance_cfg.read(pj(root, 'instance.ini'))
-                    instance_cfg = dict(instance_cfg.items('options'))
-                    needed_core = instance_cfg.get('core')
-                    if needed_core:
-                        needed_cores += ['online_' + needed_core]
-            print "Cores found in instance.ini files: %s" % needed_cores
-            # Get a list of available cores without a core_copy_lock file
-            available_cores = [x for x in os.listdir(root_dir)
-                               if x.startswith('online_o8') and os.path.isdir(pj(root_dir, x))
-                               and not os.path.isfile(pj(root_dir, x, 'core_copy.lock'))]
-            print "Cores found in %s: %s" % (root_dir, available_cores)
-            # Find unused cores
-            unused_cores = set(available_cores) - set(needed_cores)
-            unused_cores = [pj(root_dir, c) for c in unused_cores]
-            print "Unused cores found that can be removed: %s" % unused_cores
-            for unused_core in unused_cores:
-                print "ATTENTION: !!! Removing unused core %s" % unused_core
-                shutil.rmtree(unused_core)
+            # print "Remove unused cores"
+            # needed_cores = []
+            # for root, subFolders, files in os.walk(root_dir):
+            #     if 'instance.ini' in files:
+            #         instance_cfg = ConfigParser.SafeConfigParser()
+            #         instance_cfg.read(pj(root, 'instance.ini'))
+            #         instance_cfg = dict(instance_cfg.items('options'))
+            #         needed_core = instance_cfg.get('core')
+            #         if needed_core:
+            #             needed_cores += ['online_' + needed_core]
+            # print "Cores found in instance.ini files: %s" % needed_cores
+            # # Get a list of available cores without a core_copy_lock file
+            # available_cores = [x for x in os.listdir(root_dir)
+            #                    if x.startswith('online_o8') and os.path.isdir(pj(root_dir, x))
+            #                    and not os.path.isfile(pj(root_dir, x, 'core_copy.lock'))]
+            # print "Cores found in %s: %s" % (root_dir, available_cores)
+            # # Find unused cores
+            # unused_cores = set(available_cores) - set(needed_cores)
+            # unused_cores = [pj(root_dir, c) for c in unused_cores]
+            # print "Unused cores found that can be removed: %s" % unused_cores
+            # for unused_core in unused_cores:
+            #     print "ATTENTION: !!! Removing unused core %s" % unused_core
+            #     shutil.rmtree(unused_core)
 
             # Check that the free space for /opt/online is at least 3GB
-            print "Check free disk space"
+            print "Check free disk space in %s" % root_dir
             statvfs = os.statvfs(root_dir)
             free_bytes = statvfs.f_frsize * statvfs.f_bavail
             free_gbyte = free_bytes / 1000000000
             assert free_gbyte >= 3, "CRITICAL: Free disk space is less than 3 GB in %s" % root_dir
             print "%sGB free disk space in %s" % (free_gbyte, root_dir)
+
+            # Check that the free space for the online cores directory is at least 6GB
+            print "Check free disk space in %s" % conf['core_dir']
+            statvfs = os.statvfs(conf['core_dir'])
+            free_bytes = statvfs.f_frsize * statvfs.f_bavail
+            free_gbyte = free_bytes / 1000000000
+            assert free_gbyte >= 6, "CRITICAL: Free disk space is less than 3 GB in %s" % conf['core_dir']
+            print "%sGB free disk space in %s" % (free_gbyte, conf['core_dir'])
 
             # Update and clean current core
             print "Update and clean current core %s for commit %s" % (conf['core_dir'], conf['core'])
