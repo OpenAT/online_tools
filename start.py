@@ -161,10 +161,10 @@ def _git_submodule(path, user_name=None):
     try:
         print "Sync submodules from .gitmodules to .git/config for git repo in %s, " % path
         shell(['git', 'submodule', 'sync'],
-              cwd=path, timeout=120, user_name=user_name)
+              cwd=path, timeout=240, user_name=user_name)
         print "Update and init submodules"
         shell(['git', 'submodule', 'update', '--init', '--recursive'],
-              cwd=path, timeout=1200, user_name=user_name)
+              cwd=path, timeout=2400, user_name=user_name)
     except Exception as e:
         raise Exception('CRITICAL: Git submodule update %s failed! Exception: %s' % (path, pp(e)))
     return True
@@ -179,7 +179,7 @@ def _git_clone(repo, branch='o8', cwd='', target='', user_name=None):
     assert not os.path.exists(target_dir), 'CRITICAL: Target path exists: %s' % target_dir
     devnull = open(os.devnull, 'w')
     try:
-        shell(['git', 'clone', '-b', branch, repo, target], cwd=cwd, timeout=600, user_name=user_name)
+        shell(['git', 'clone', '-b', branch, repo, target], cwd=cwd, timeout=1200, user_name=user_name)
         _git_submodule(target_dir, user_name=user_name)
     except Exception as e:
         raise Exception('CRITICAL: Git clone %s failed!%s' % (repo, pp(e)))
@@ -193,13 +193,13 @@ def _git_checkout(path, commit='o8', user_name=None):
     assert os.path.exists(path), 'CRITICAL: Path not found: %s' % path
     try:
         print "Git fetch before checkout %s" % path
-        shell(['git', 'fetch'], cwd=path, timeout=120, user_name=user_name)
-        shell(['git', 'fetch', '--tags'], cwd=path, timeout=120, user_name=user_name)
+        shell(['git', 'fetch'], cwd=path, timeout=240, user_name=user_name)
+        shell(['git', 'fetch', '--tags'], cwd=path, timeout=240, user_name=user_name)
     except Exception as e:
         print 'ERROR: git fetch failed before checkout!%s' % pp(e)
     try:
         print "Git checkout %s" % path
-        shell(['git', 'checkout', commit], cwd=path, timeout=60, user_name=user_name)
+        shell(['git', 'checkout', commit], cwd=path, timeout=120, user_name=user_name)
         _git_submodule(path, user_name=user_name)
     except Exception as e:
         raise Exception('CRITICAL: Git checkout %s failed!%s' % (commit, pp(e)))
@@ -216,31 +216,31 @@ def _git_latest(target_path, repo, commit='o8', user_name=None, pull=False):
         try:
             print "Fetch latest data and tags %s, " % target_path
             shell(['git', 'fetch', '--tags'],
-                  cwd=target_path, timeout=120, stderr=devnull, user_name=user_name)
+                  cwd=target_path, timeout=240, stderr=devnull, user_name=user_name)
             # ATTENTION: originally it was -xfdf but i remove the x to not delete the files excluded by .gitignore
             #            so the copy core lock file will not be removed any more
             print "Force-Clean git repo in %s, " % target_path
             shell(['git', 'clean', '-fdf'],
-                  cwd=target_path, timeout=120, stderr=devnull, user_name=user_name)
+                  cwd=target_path, timeout=240, stderr=devnull, user_name=user_name)
             # ATTENTION: originally it was -xfdf but i remove the x to not delete the files excluded by .gitignore
             print "Force-Clean git repo submodules in %s, " % target_path
             shell(['git', 'submodule', 'foreach', '--recursive', 'git', 'clean', '-fdf'],
-                  cwd=target_path, timeout=120, stderr=devnull, user_name=user_name)
+                  cwd=target_path, timeout=240, stderr=devnull, user_name=user_name)
             print "Hard-Reset git repo in %s, " % target_path
             shell(['git', 'reset', '--hard'],
-                  cwd=target_path, timeout=120, stderr=devnull, user_name=user_name)
+                  cwd=target_path, timeout=240, stderr=devnull, user_name=user_name)
             print "Sync submodules from .gitmodules to .git/config for git repo in %s, " % target_path
             shell(['git', 'submodule', 'sync'],
-                  cwd=target_path, timeout=120, stderr=devnull, user_name=user_name)
+                  cwd=target_path, timeout=240, stderr=devnull, user_name=user_name)
             print "Hard-Reset git repo submodules in %s, " % target_path
             shell(['git', 'submodule', 'foreach', '--recursive', 'git', 'reset', '--hard'],
-                  cwd=target_path, timeout=120, stderr=devnull, user_name=user_name)
+                  cwd=target_path, timeout=240, stderr=devnull, user_name=user_name)
             print "Update and init git repo submodules in %s, " % target_path
             shell(['git', 'submodule', 'update', '--init', '--recursive'],
-                  cwd=target_path, timeout=120, stderr=devnull, user_name=user_name)
+                  cwd=target_path, timeout=240, stderr=devnull, user_name=user_name)
             print "Update git repo submodules with -f in %s, " % target_path
             shell(['git', 'submodule', 'update', '-f'],
-                  cwd=target_path, timeout=120, stderr=devnull, user_name=user_name)
+                  cwd=target_path, timeout=240, stderr=devnull, user_name=user_name)
         except Exception as e:
             print 'ERROR: Reset and clean git repo and submodules failed! %s' % pp(e)
         try:
@@ -249,7 +249,7 @@ def _git_latest(target_path, repo, commit='o8', user_name=None, pull=False):
             raise Exception('CRITICAL: git checkout failed!%s' % pp(e))
         try:
             if pull:
-                shell(['git', 'pull'], cwd=target_path, timeout=120, stderr=devnull, user_name=user_name)
+                shell(['git', 'pull'], cwd=target_path, timeout=240, stderr=devnull, user_name=user_name)
         except Exception as e:
             raise Exception('CRITICAL: git pull failed!%s' % pp(e))
         devnull.close()
@@ -304,12 +304,15 @@ def _service_control(service_name, running, wait=10):
         return False
 
 
-def _find_root_dir(path, tools_folder_name='online_tools', stop='/'):
-    while path not in ['/', stop, ]:
-        if tools_folder_name in os.listdir(path):
-            return path
-        path = os.path.dirname(path)
-    return False
+def _find_root_dir(path, tools_folder_name=['online_tools', 'cores']):
+    root_dir = os.path.dirname(path)
+
+    assert any(f in os.listdir(root_dir) for f in tools_folder_name
+               ), "ERROR: None of the folders %s found in root_dir %s" % (tools_folder_name, root_dir)
+
+    # return the root dir
+    print "_find_root_dir(): %s" % root_dir
+    return root_dir
 
 
 def _odoo_config(instance_path):
@@ -675,7 +678,7 @@ def _get_cores(conf):
 
                         # Make sure others can read(use) the core and its files too
                         # HINT: This should be ok already in the core in Github!
-                        shell(['chmod', '-R', 'o=rX', path], cwd=path, timeout=60)
+                        shell(['chmod', '-R', 'o=rX', path], cwd=path, timeout=120)
                     except (Exception, subprocess32.TimeoutExpired) as e:
                         print 'ERROR: Set user and rights failed! Retcode %s !' % pp(e)
 
@@ -883,7 +886,7 @@ def _odoo_backup(conf, backup_target=None, stop_after_backup=False):
         print 'Backup of database at %s to %s' % (conf['db_name'], backup_target)
         cmd = ['pg_dump', '--format=c', '--no-owner',
                '--dbname=' + conf['db_url'], '--file=' + pj(backup_target, 'db.dump')]
-        shell(cmd, timeout=900)
+        shell(cmd, timeout=1800)
     except Exception as e:
         raise Exception('CRITICAL: Backup of database failed!%s' % pp(e))
 
@@ -963,7 +966,7 @@ def _odoo_restore(backup_dir, conf, data_dir_target='', database_target_url='', 
         raise Exception('CRITICAL: Drop (and create) database failed!%s' % pp(e))
     try:
         # Restore the database (HINT: Don't use --clean!)
-        shell(database_restore_cmd, timeout=1800)
+        shell(database_restore_cmd, timeout=2400)
     except (Exception, subprocess32.TimeoutExpired) as e:
         raise Exception('CRITICAL: Restore database failed!%s' % pp(e))
 
