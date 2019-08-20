@@ -490,8 +490,8 @@ def _odoo_update_config(cnf):
             print "WARNING: Concurrent update running. Recheck in 60 seconds."
             sleep(60)
             counter += 1
-            assert counter <= 20, 'CRITICAL: Concurrent update still running after 20 min! Please check %s .' \
-                                  '' % cnf['update_lock_file']
+            assert counter <= 120, 'CRITICAL: Concurrent update still running after 120 min! Please check %s .' \
+                                   '' % cnf['update_lock_file']
 
         # Check if more than two other updates are already running on this server
         print "Check if more than two other updates are already running on this server"
@@ -499,23 +499,28 @@ def _odoo_update_config(cnf):
         delay_update = True
         delay_update_counter = 0
         start_root_dir = cnf.get('root_dir', "/opt/online")
-        while delay_update and delay_update_counter <= 20:
+        # Stop after 6 Hours (36 * 10 minutes = 360 minutes)
+        max_delay_update_counter = 36
+        while delay_update and delay_update_counter <= max_delay_update_counter:
             update_lock_file_counter = 0
             print "Searching for update.lock files from start-folder: %s" % start_root_dir
             for root, subFolders, files in os.walk(start_root_dir):
                 if 'update.lock' in files:
                     update_lock_file_counter = update_lock_file_counter + 1
             if update_lock_file_counter > 3:
-                print "More than two other updates are currently running! Retry in 60 seconds!"
+                print "More than two other updates are currently running! Retry in 10 minutes!"
                 delay_update_counter = delay_update_counter + 1
-                sleep(60)
+                sleep(600)
             else:
                 print "Less than two other updates are currently running! Continue with this update!"
                 delay_update = False
+        if delay_update:
+            print "ERROR: There are still more than two updates running after 6 hours!"
 
         # Stop update if ...
         if cnf['update_failed'] != 'False' or cnf['no_update'] != 'False' \
-                or any(x in ['--addons-path', '-u', '-i'] for x in sys.argv):
+                or any(x in ['--addons-path', '-u', '-i'] for x in sys.argv)\
+                or delay_update:
             print '\nUPDATE SKIPPED! Check "update_failed", "no_update", "-u", "-i" or "--addons-path".'
             cnf['run_update'] = False
             return cnf
