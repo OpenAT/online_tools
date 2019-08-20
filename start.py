@@ -519,7 +519,7 @@ def _odoo_update_config(cnf):
 
         # Stop update if ...
         if cnf['update_failed'] != 'False' or cnf['no_update'] != 'False' \
-                or any(x in ['--addons-path', '-u', '-i'] for x in sys.argv)\
+                or any(x in ['--addons-path', '-u', '-i'] for x in sys.argv) \
                 or delay_update:
             print '\nUPDATE SKIPPED! Check "update_failed", "no_update", "-u", "-i" or "--addons-path".'
             cnf['run_update'] = False
