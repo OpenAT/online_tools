@@ -524,10 +524,10 @@ def _odoo_update_config(cnf):
 
         # Check if more than two other updates are already running on this server
         print "Check if more than two other updates are already running on this server"
-        
+
         # Add a random sleep from 5 to 30 seconds to make sure there is enough time to find other updates
         sleep(randrange(5, 30))
-        
+
         # Find all update.lock files in /opt/online
         delay_update = True
         delay_update_counter = 0
@@ -556,6 +556,7 @@ def _odoo_update_config(cnf):
         cnf['run_update'] = True
 
         # Create update lock file (Starting Update now)
+        print "Creating updated lock file at %s" % cnf['update_lock_file']
         with open(cnf['update_lock_file'], 'a+'):
             assert os.path.isfile(cnf['update_lock_file']), 'CRITICAL: Could not create update_lock_file %s' \
                                                             % cnf['update_lock_file']
