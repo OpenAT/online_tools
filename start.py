@@ -480,8 +480,36 @@ def _odoo_update_config(cnf):
         assert os.path.exists(pj(cnf['instance_dir'], 'update')), 'CRITICAL: "update" Directory missing!'
         cnf['latest_instance'] = cnf['instance'] + '_update'
 
+        # Send Info E-Mail to admin@datadialog.net
+        try:
+            fromaddr = "admin@datadialog.net"
+            toaddr = "admin@datadialog.net"
+            print "Sending status e-mail to %s" % toaddr
+
+            instance = cnf.get('instance', '') if cnf else ''
+
+            msg = MIMEMultipart()
+            msg['From'] = fromaddr
+            msg['To'] = toaddr
+            msg['Subject'] = "INSTANCE %s: Instance Update Check started!" % instance.upper()
+            body = msg['Subject']
+            msg.attach(MIMEText(body, 'plain'))
+
+            server = smtplib.SMTP('192.168.37.1', 25)
+            server.sendmail(fromaddr, toaddr, msg.as_string())
+            server.quit()
+        except Exception as x:
+            print "WARNING: Could not send status e-mail!:\n%s" % repr(x)
+
         # Backup path and filename
         cnf['backup'] = pj(cnf['backup_dir'], cnf['db_name'] + '-pre-update_backup-' + cnf['start_time'])
+
+        # Stop update if ...
+        if cnf['update_failed'] != 'False' or cnf['no_update'] != 'False' \
+                or any(x in ['--addons-path', '-u', '-i'] for x in sys.argv):
+            print '\nUPDATE SKIPPED! Check "update_failed", "no_update", "-u", "-i" or "--addons-path".'
+            cnf['run_update'] = False
+            return cnf
 
         # Check if an concurrent update is already running for this instance
         cnf['update_lock_file'] = pj(cnf['instance_dir'], 'update.lock')
@@ -499,8 +527,8 @@ def _odoo_update_config(cnf):
         delay_update = True
         delay_update_counter = 0
         start_root_dir = cnf.get('root_dir', "/opt/online")
-        # Stop after 6 Hours (36 * 10 minutes = 360 minutes)
-        max_delay_update_counter = 36
+        # Stop after 6 Hours (72 * 5 minutes = 360 minutes = 6 Hours)
+        max_delay_update_counter = 72
         while delay_update and delay_update_counter <= max_delay_update_counter:
             update_lock_file_counter = 0
             print "Searching for update.lock files from start-folder: %s" % start_root_dir
@@ -508,22 +536,18 @@ def _odoo_update_config(cnf):
                 if 'update.lock' in files:
                     update_lock_file_counter = update_lock_file_counter + 1
             if update_lock_file_counter > 3:
-                print "More than two other updates are currently running! Retry in 10 minutes!"
+                print "More than two other updates are currently running! Retry in 5 minutes!"
                 delay_update_counter = delay_update_counter + 1
-                sleep(600)
+                sleep(300)
             else:
                 print "Less than two other updates are currently running! Continue with this update!"
                 delay_update = False
         if delay_update:
-            print "ERROR: There are still more than two updates running after 6 hours!"
-
-        # Stop update if ...
-        if cnf['update_failed'] != 'False' or cnf['no_update'] != 'False' \
-                or any(x in ['--addons-path', '-u', '-i'] for x in sys.argv) \
-                or delay_update:
-            print '\nUPDATE SKIPPED! Check "update_failed", "no_update", "-u", "-i" or "--addons-path".'
+            print "ERROR: UPDATE SKIPPED! There are still more than two updates running after 6 hours!"
             cnf['run_update'] = False
             return cnf
+
+        # All pre-update checks where successful
         cnf['run_update'] = True
 
         # Create update lock file (Starting Update now)
