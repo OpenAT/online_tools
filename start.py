@@ -17,6 +17,7 @@ import datetime
 import smtplib
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
+from random import randrange
 
 # ATTENTION: Import certs will cause a segmentation fault in ubuntu14.04 out of nowhere ?!? Therefore deactivated!
 # requests ca-cert bundle
@@ -523,6 +524,10 @@ def _odoo_update_config(cnf):
 
         # Check if more than two other updates are already running on this server
         print "Check if more than two other updates are already running on this server"
+        
+        # Add a random sleep from 5 to 30 seconds to make sure there is enough time to find other updates
+        sleep(randrange(5, 30))
+        
         # Find all update.lock files in /opt/online
         delay_update = True
         delay_update_counter = 0
