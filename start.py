@@ -1,8 +1,6 @@
 #!/usr/bin/env python
 import sys
 import os
-#from os.path import join as pj
-pj = os.path.join
 import ConfigParser
 import time
 import shutil
@@ -18,6 +16,11 @@ import smtplib
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from random import randrange
+from find_file import find_file
+
+# Alias
+pj = os.path.join
+
 
 # ATTENTION: Import certs will cause a segmentation fault in ubuntu14.04 out of nowhere ?!? Therefore deactivated!
 # requests ca-cert bundle
@@ -512,7 +515,7 @@ def _odoo_update_config(cnf):
             cnf['run_update'] = False
             return cnf
 
-        # Check if an concurrent update is already running for this instance
+        # Check if a concurrent update is already running for this instance
         cnf['update_lock_file'] = pj(cnf['instance_dir'], 'update.lock')
         counter = 0
         while os.path.isfile(cnf['update_lock_file']):
@@ -522,31 +525,31 @@ def _odoo_update_config(cnf):
             assert counter <= 120, 'CRITICAL: Concurrent update still running after 120 min! Please check %s .' \
                                    '' % cnf['update_lock_file']
 
-        # Check if more than two other updates are already running on this server
+        # CHECK IF MORE THAN TWO OTHER UPDATES ARE ALREADY RUNNING ON THIS SERVER
         print "Check if more than two other updates are already running on this server"
-
-        # Add a random sleep from 5 to 30 seconds to make sure there is enough time to find other updates
-        sleep(randrange(5, 30))
-
-        # Find all update.lock files in /opt/online
         delay_update = True
-        delay_update_counter = 0
+        searches_counter = 0
+        searches_counter_max = 72
         start_root_dir = cnf.get('root_dir', "/opt/online")
-        # Stop after 6 Hours (72 * 5 minutes = 360 minutes = 6 Hours)
-        max_delay_update_counter = 72
-        while delay_update and delay_update_counter <= max_delay_update_counter:
+        max_concurrent_updates = 2
+        # Add a random sleep from 1 to 6 seconds just in case all updates started exactly at the same time
+        sleep(randrange(2, 6))
+        while delay_update and searches_counter <= searches_counter_max:
             update_lock_file_counter = 0
-            print "Searching for update.lock files from start-folder: %s" % start_root_dir
-            for root, subFolders, files in os.walk(start_root_dir):
-                if 'update.lock' in files:
-                    update_lock_file_counter = update_lock_file_counter + 1
-            if update_lock_file_counter > 3:
-                print "More than two other updates are currently running! Retry in 5 minutes!"
-                delay_update_counter = delay_update_counter + 1
+
+            # Search for the file
+            update_lock_files = find_file('update.lock', start_dir=start_root_dir, max_finds=max_concurrent_updates,
+                                          exclude_folders=['cores'])
+
+            if len(update_lock_files) >= max_concurrent_updates:
+                searches_counter = searches_counter + 1
+                print "More than two other updates are currently running! Retry update in 5 minutes!"
                 sleep(300)
             else:
-                print "Less than two other updates are currently running! Continue with this update!"
+                # Do no longer delay the update!
                 delay_update = False
+
+        # Stop the Update if there are still updates running after 6 hours
         if delay_update:
             print "ERROR: UPDATE SKIPPED! There are still more than two updates running after 6 hours!"
             cnf['run_update'] = False
