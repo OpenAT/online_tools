@@ -4,15 +4,27 @@ import sys
 import pwd
 import subprocess32
 import zipfile
+modes = {zipfile.ZIP_DEFLATED: 'deflated',
+         zipfile.ZIP_STORED: 'stored',
+         }
+try:
+    import zlib
+    # Hack to force zipfile compression level
+    zlib.Z_DEFAULT_COMPRESSION = 1
+    compression = zipfile.ZIP_DEFLATED
+except:
+    compression = zipfile.ZIP_STORED
+# TEST FOR SPEED
+# compression = zipfile.ZIP_STORED
 
 import logging
-log = logging.getLogger()
+_log = logging.getLogger()
 
 
 # Returns a function! Helper function for function "shell()" to switch the user before shell command is executed
 def _switch_user_function(user_uid, user_gid):
     def inner():
-        log.debug('Switch user from %s:%s to %s:%s.' % (os.getuid(), os.getgid(), user_uid, user_gid))
+        _log.debug('Switch user from %s:%s to %s:%s.' % (os.getuid(), os.getgid(), user_uid, user_gid))
         # HINT: Will throw an exception if user or group can not be switched
         os.setresgid(user_gid, user_gid, user_gid)
         os.setresuid(user_uid, user_gid, user_gid)
@@ -21,7 +33,7 @@ def _switch_user_function(user_uid, user_gid):
 
 # Linux-Shell wrapper
 def shell(cmd=list(), user=None, cwd=None, env=None, preexec_fn=None, log_info=True, **kwargs):
-    log.debug("Run shell command: %s" % cmd)
+    _log.debug("Run shell command: %s" % cmd)
     assert isinstance(cmd, (list, tuple)), 'shell(cmd): cmd must be of type list or tuple!'
 
     # Working directory
@@ -49,7 +61,7 @@ def shell(cmd=list(), user=None, cwd=None, env=None, preexec_fn=None, log_info=T
 
     # Log user Current-Working-Directory and shell command to be executed
     if log_info:
-        log.info('[%s %s]$ %s' % (linux_user.pw_name, cwd, ' '.join(cmd)))
+        _log.info('[%s %s]$ %s' % (linux_user.pw_name, cwd, ' '.join(cmd)))
 
     # Execute shell command and return its output
     # HINT: this was the original solution but this will not log errors but send it to sys.stderr
@@ -64,7 +76,7 @@ def shell(cmd=list(), user=None, cwd=None, env=None, preexec_fn=None, log_info=T
     except subprocess32.CalledProcessError as e:
         std_err = '{}'.format(e.output.decode(sys.getfilesystemencoding()))
         if std_err:
-            log.warning(std_err.rstrip('\n'))
+            _log.warning(std_err.rstrip('\n'))
         raise e
 
 
@@ -75,7 +87,7 @@ def disk_usage(folder):
     :return: (int) Disk-Size of folder (recursively) in MB
     """
     folder = os.path.abspath(folder)
-    log.info("Check disk usage of folder at %s" % folder)
+    _log.info("Check disk usage of folder at %s" % folder)
     assert os.path.isdir(folder), "Directory not found: %s" % folder
 
     size = shell(['du', '-sm', folder])
@@ -93,15 +105,15 @@ def check_disk_space(folder, min_free_mb=0):
     """
     folder = os.path.abspath(folder)
     if min_free_mb:
-        log.info("Check if %sMB disk space is left at %s" % (min_free_mb, folder))
+        _log.info("Check if %sMB disk space is left at %s" % (min_free_mb, folder))
     else:
-        log.info("Compute free disk space in MB for folder %s" % folder)
+        _log.info("Compute free disk space in MB for folder %s" % folder)
     assert os.path.isdir(folder), "Directory not found: %s" % folder
 
     statvfs = os.statvfs(folder)
     free_bytes = statvfs.f_frsize * statvfs.f_bavail
     free_mb = free_bytes / 1000000
-    log.info("%sMB free disk space at %s" % (free_mb, folder))
+    _log.info("%sMB free disk space at %s" % (free_mb, folder))
 
     result = free_mb >= min_free_mb if min_free_mb else free_mb
     return result
@@ -109,12 +121,42 @@ def check_disk_space(folder, min_free_mb=0):
 
 def test_zip(zip_file):
     zip_file = os.path.abspath(zip_file)
-    log.info("Verify zip archive at %s" % zip_file)
+    _log.info("Verify zip archive at %s" % zip_file)
     assert os.path.isfile(zip_file), "File not found at %s" % zip_file
     try:
         zip_to_check = zipfile.ZipFile(zip_file)
         failed = zip_to_check.testzip()
         assert failed is None, "Damaged files in zip archive found! %s" % failed
     except Exception as e:
-        log.error("Zip archive damaged! %s" % repr(e))
+        _log.error("Zip archive damaged! %s" % repr(e))
         raise e
+
+
+def make_zip_archive(output_filename=None, source_dir=None, verify_archive=False):
+    """
+    Will create a zip archive with relative file paths
+    :param output_filename: Path and name of the zip archive file to create
+    :param source_dir: Folder that should be zipped
+    :return:
+    """
+    relroot = os.path.abspath(os.path.join(source_dir, os.pardir))
+
+    # Open the zip archive
+    with zipfile.ZipFile(output_filename, "w", compression, allowZip64=True) as archive_file:
+
+        # Walk through all the files and folders
+        for root, dirs, files in os.walk(source_dir):
+
+            # Add directory (needed for empty dirs)
+            archive_file.write(root, os.path.relpath(root, relroot))
+
+            # Add regular files
+            for f in files:
+                filename = os.path.join(root, f)
+                if os.path.isfile(filename):
+                    archive_name = os.path.join(os.path.relpath(root, relroot), f)
+                    archive_file.write(filename, archive_name)
+
+    # Test the zip archive
+    if verify_archive:
+        test_zip(output_filename)
