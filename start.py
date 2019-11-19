@@ -716,6 +716,7 @@ def _get_cores(conf):
 
                         # Make sure others can read(use) the core and its files too
                         # HINT: This should be ok already in the core in Github!
+                        # TODO: Disable This since it takes too long :(
                         shell(['chmod', '-R', 'o=rX', path], cwd=path, timeout=120)
                     except (Exception, subprocess32.TimeoutExpired) as e:
                         print 'ERROR: Set user and rights failed! Retcode %s !' % pp(e)
@@ -794,7 +795,8 @@ def _get_cores(conf):
                             print "Latest repository size in MB: %s" % repo_size
                             if repo_size > 600:
                                 print "Latest core repository seems to exists! Skipping Core Update!"
-                                _set_rights(conf, paths)
+                                # Disabled set rights when the core is already there because it takes quite long
+                                #_set_rights(conf, paths)
                                 return True
                         except Exception as e:
                             print "WARNING: Could not determine size of latest repository folder %s!\n%s" \
@@ -885,6 +887,9 @@ def _get_cores(conf):
             assert core_tag and conf['latest_core'] in core_tag, "Release tag not correct in %s!" \
                                                                  "" % conf['latest_core_dir']
 
+            # Set correct rights for the new core
+            _set_rights(conf, paths)
+
             # Delete the core_copy_lock file
             print "Core successfully created! "
             if os.path.isfile(core_copy_lock):
@@ -892,9 +897,6 @@ def _get_cores(conf):
                 os.remove(core_copy_lock)
             else:
                 print "WARNING: File core_copy.lock was already deleted at %s" % core_copy_lock
-
-    # Set correct rights
-    _set_rights(conf, paths)
 
     # Finish
     print "---- GET CORES done\n"
