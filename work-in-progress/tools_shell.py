@@ -1,8 +1,10 @@
 # -*- coding: utf-'8' "-*-"
 import os
+from os.path import join as pj
 import sys
 import pwd
 import subprocess32
+import time
 import zipfile
 modes = {zipfile.ZIP_DEFLATED: 'deflated',
          zipfile.ZIP_STORED: 'stored',
@@ -20,48 +22,53 @@ except:
 import logging
 _log = logging.getLogger()
 
+try:
+    import scandir
+except:
+    _log.warning("python lib 'scandir' could not be imported!")
+
 
 # Returns a function! Helper function for function "shell()" to switch the user before shell command is executed
 def _switch_user_function(user_uid, user_gid):
+    _log.debug('Change user to uid %s with gid %s' % (user_uid, user_gid))
+
     def inner():
-        _log.debug('Switch user from %s:%s to %s:%s.' % (os.getuid(), os.getgid(), user_uid, user_gid))
-        # HINT: Will throw an exception if user or group can not be switched
-        os.setresgid(user_gid, user_gid, user_gid)
-        os.setresuid(user_uid, user_gid, user_gid)
+        os.setregid(user_gid, user_gid)
+        os.setreuid(user_uid, user_uid)
+
     return inner
 
 
 # Linux-Shell wrapper
-def shell(cmd=list(), user=None, cwd=None, env=None, preexec_fn=None, log_info=True, **kwargs):
+def shell(cmd=list(), user=None, cwd=None, env=None, preexec_fn=None, **kwargs):
     _log.debug("Run shell command: %s" % cmd)
     assert isinstance(cmd, (list, tuple)), 'shell(cmd): cmd must be of type list or tuple!'
 
     # Working directory
     cwd = cwd or os.getcwd()
 
-    # Linux User
-    linux_user = pwd.getpwuid(os.getuid())
+    # Linux User Object
+    linux_user_obj = pwd.getpwuid(os.getuid())
 
-    # Switch user and environment if given
+    # If user is set switch the user and os environment by
     if user:
         # Get linux user details from unix user account and password database
         # HINT: In case the user can not be found pwd will throw an KeyError exception.
-        linux_user = pwd.getpwnam(user)
+        linux_user_obj = pwd.getpwnam(user)
 
         # Create a new os environment
         env = os.environ.copy()
 
         # Set environment variables
         env['USER'] = user
-        env['LOGNAME'] = linux_user.pw_name
-        env['HOME'] = linux_user.pw_dir
+        env['LOGNAME'] = linux_user_obj.pw_name
+        env['HOME'] = linux_user_obj.pw_dir
 
         # Create a new function that will be called by subprocess32 before the shell command is executed
-        preexec_fn = _switch_user_function(linux_user.pw_uid, linux_user.pw_gid)
+        preexec_fn = _switch_user_function(linux_user_obj.pw_uid, linux_user_obj.pw_gid)
 
     # Log user Current-Working-Directory and shell command to be executed
-    if log_info:
-        _log.info('[%s %s]$ %s' % (linux_user.pw_name, cwd, ' '.join(cmd)))
+    _log.info('[%s@%s]$ %s' % (linux_user_obj.pw_name, cwd, ' '.join(cmd)))
 
     # Execute shell command and return its output
     # HINT: this was the original solution but this will not log errors but send it to sys.stderr
@@ -77,6 +84,9 @@ def shell(cmd=list(), user=None, cwd=None, env=None, preexec_fn=None, log_info=T
         std_err = '{}'.format(e.output.decode(sys.getfilesystemencoding()))
         if std_err:
             _log.warning(std_err.rstrip('\n'))
+        raise e
+    except Exception as e:
+        _log.error('Shell subprocess32 exception! %s' % repr(e))
         raise e
 
 
@@ -160,3 +170,51 @@ def make_zip_archive(output_filename=None, source_dir=None, verify_archive=False
     # Test the zip archive
     if verify_archive:
         test_zip(output_filename)
+
+
+def find_file(file_name, start_dir='/', max_finds=0, exclude_folders=tuple(), walk_method=None):
+    start = time.time()
+    exclude_folders = list(set(exclude_folders))
+
+    _log.info("Search recursively for file '%s' in directory '%s' for %s occurrences with excluded directories %s!"
+              "" % (file_name, start_dir,
+                    max_finds if max_finds else 'unlimited',
+                    str(exclude_folders) if exclude_folders else 'no'))
+
+    # Select walk method
+    if not walk_method:
+        try:
+            walk_method = scandir.walk
+        except:
+            walk_method = os.walk
+
+    res = []
+    for root_folder, sub_folders, files in walk_method(start_dir, topdown=True):
+
+        # Exclude unwanted folders
+        if exclude_folders:
+            sub_folders_start = sub_folders[:]
+            # Modify sub_folders in-place
+            # HINT: Modifying sub_folders in-place will prune the (subsequent) files and directories visited by os.walk
+            sub_folders[:] = [d for d in sub_folders if d not in exclude_folders]
+            sub_folders_removed = [r for r in sub_folders_start if r not in sub_folders]
+            if sub_folders_removed:
+                _log.debug("Subfolder(s) %s removed!" % str(sub_folders_removed))
+
+        # Search for the file
+        if file_name in files:
+            res.append(pj(root_folder, file_name))
+
+        # Stop the for loop if file was found 'max_finds' times
+        if 0 < max_finds <= len(res):
+            _log.info("File %s found %s times! Stopping the search!" % (file_name, len(res)))
+            break
+
+    _log.info("File %s was %sfound at %s in %s seconds with method '%s'"
+              "" % (file_name,
+                    str(len(res))+' times ' if res else 'NOT ',
+                    start_dir,
+                    time.time() - start,
+                    walk_method.__name__))
+
+    return res

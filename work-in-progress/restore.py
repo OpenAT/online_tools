@@ -15,7 +15,7 @@ _log = logging.getLogger()
 
 
 # TODO: WARNING: SET backup_before_drop=TRUE after debugging and testing is done!
-def restore(instance_dir, backup_zip_file, cmd_args=None, log_file='', mode='all', backup_before_drop=False):
+def restore(instance_dir, backup_zip_file, cmd_args=None, log_file='', mode='manual', backup_before_drop=False):
     cmd_args = list() if not cmd_args else cmd_args
     mode_allowed = ('all', 'http', 'manual')
     assert mode in mode_allowed, "mode must be one of %s" % str(mode_allowed)
@@ -31,7 +31,7 @@ def restore(instance_dir, backup_zip_file, cmd_args=None, log_file='', mode='all
     assert os.path.isdir(instance_dir), 'Instance directory not found at %s' % instance_dir
     assert os.path.isfile(backup_zip_file), 'Backup zip file not found at %s' % backup_zip_file
 
-    # Load configuration
+    # Load instance configuration
     _log.info("Prepare settings")
     s = Settings(instance_dir, startup_args=cmd_args, log_file=log_file)
 
@@ -105,6 +105,7 @@ def restore(instance_dir, backup_zip_file, cmd_args=None, log_file='', mode='all
         _log.info("Restore dump.sql from backup archive with psql to database %s" % s.db_name)
         try:
             shell(['psql', '-d', s.db_url, '-f', dump_file.name], log_info=False, timeout=60 * 60 * 1)
+            restore_done = True
         except Exception as e:
             _log.error("Restore dump.sql from backup archive with psql failed! %s" % repr(e))
             os.unlink(dump_file.name)
