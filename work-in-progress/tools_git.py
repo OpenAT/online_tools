@@ -1,24 +1,32 @@
 # -*- coding: utf-'8' "-*-"
 import os
-from os.path import join as pj
 
-from tools_shell import shell
-from tools import retry
+from tools_shell import shell, retry
 
 import logging
 _log = logging.getLogger()
 
 
-def get_sha1(path):
+def get_sha1(path, raise_exception=True):
     _log.info("Get SHA1 of git repo at %s" % path)
-    assert os.path.isdir(path), "Repository path not found at %s" % path
+    try:
+        assert os.path.isdir(path), "Repository path not found at %s" % path
 
-    # sha1 = shell(['git', 'rev-parse', 'HEAD'], cwd=path)
-    sha1 = shell(['git', 'log', '-1', '--pretty="%H"'], cwd=path)
-    sha1 = sha1.strip().replace('"', '').replace("'", "")
+        # sha1 = shell(['git', 'rev-parse', 'HEAD'], cwd=path)
+        sha1 = shell(['git', 'log', '-1', '--pretty="%H"'], cwd=path)
+        sha1 = sha1.strip().replace('"', '').replace("'", "")
 
-    assert len(sha1) == 40, 'Wrong or missing SHA1 (%s) for git repo at %s!' % (sha1, path)
-    return sha1
+        assert len(sha1) == 40, 'Wrong or missing SHA1 (%s) for git repo at %s!' % (sha1, path)
+    except Exception as e:
+        msg = 'Could not get SHA1! %s' % repr(e)
+        if raise_exception:
+            _log.error(msg)
+            raise e
+        else:
+            _log.warning(msg)
+            return ''
+
+    return sha1.strip().rstrip('\n')
 
 
 def get_submodule_sha1(path, submodule=str()):
@@ -58,28 +66,28 @@ def get_tag(path, match='o8r*', raise_exception=True):
             cmd.append('--match='+match)
         tag = shell(cmd, cwd=path)
     except Exception as e:
-        _log.error('Could not get tag! %s' % repr(e))
+        msg = 'Could not get tag! %s' % repr(e)
         if raise_exception:
+            _log.error(msg)
             raise e
         else:
-            return False
+            _log.warning(msg)
+            return ''
 
-    return tag
+    return tag.strip().rstrip('\n')
 
 
 def get_current_branch(path):
     _log.info('Get current branch from git repot at %s' % path)
     # HINT: 'git branch' would be to cumbersome because it may list all branches and mark the current one with *
     branch = shell(['git', '-C', path, 'rev-parse', '--abbrev-ref', 'HEAD'], cwd=path)
-    branch = branch.strip('\n')
-    return branch
+    return branch.strip().rstrip('\n')
 
 
 def get_remote_url(path):
     _log.info('Get remote url from git repot at %s' % path)
     remote_url = shell(['git', '-C', path, 'config', '--get', 'remote.origin.url'], cwd=path)
-    remote_url = remote_url.strip('\n')
-    return remote_url
+    return remote_url.strip().rstrip('\n')
 
 
 @retry(Exception, tries=3)

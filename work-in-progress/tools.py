@@ -2,57 +2,17 @@
 import os
 from os.path import join as pj
 import time
+from time import sleep
 import ConfigParser
-from functools import wraps
+import smtplib
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
 
-from tools_shell import shell
+from tools_shell import check_disk_space, disk_usage, shell
+import tools_git as git
 
 import logging
 _log = logging.getLogger()
-
-
-def retry(exception_to_check, tries=4, delay=3, backoff=2, logger=None):
-    """Retry calling the decorated function using an exponential backoff.
-
-    http://www.saltycrane.com/blog/2009/11/trying-out-retry-decorator-python/
-    original from: http://wiki.python.org/moin/PythonDecoratorLibrary#Retry
-
-    :param exception_to_check: the exception to check. may be a tuple of
-        exceptions to check
-    :type exception_to_check: Exception or tuple
-    :param tries: number of times to try (not retry) before giving up
-    :type tries: int
-    :param delay: initial delay between retries in seconds
-    :type delay: int
-    :param backoff: backoff multiplier e.g. value of 2 will double the delay
-        each retry
-    :type backoff: int
-    :param logger: logger to use. If None, print
-    :type logger: logging.Logger instance
-    """
-
-    def deco_retry(f):
-
-        @wraps(f)
-        def f_retry(*args, **kwargs):
-            mtries, mdelay = tries, delay
-            while mtries > 1:
-                try:
-                    return f(*args, **kwargs)
-                except exception_to_check, e:
-                    msg = "%s, Retrying in %d seconds..." % (str(e), mdelay)
-                    if logger:
-                        logger.warning(msg)
-                    else:
-                        print msg
-                    time.sleep(mdelay)
-                    mtries -= 1
-                    mdelay *= backoff
-            return f(*args, **kwargs)
-
-        return f_retry  # true decorator
-
-    return deco_retry
 
 
 def production_server_check(instance_dir):
@@ -125,3 +85,152 @@ def inifile_to_dict(inifile, section='options'):
     return dict(cparser.items(section))
 
 
+def prepare_repository(repo_dir='', service_name='', git_remote_url='', branch='', user=''):
+    # Clone (create) repository
+    if not os.path.exists(repo_dir):
+        _log.info("Clone instance github repository %s with branch %s to %s as user %s"
+                  "" % (git_remote_url, branch, repo_dir, user))
+        git.git_clone(git_remote_url, branch=branch, target_dir=repo_dir,
+                      cwd=os.path.dirname(repo_dir), user=user)
+
+    # Update existing repository
+    else:
+        _log.info("Checkout latest commit of github repository %s for branch %s"
+                  "" % (repo_dir, branch))
+
+        # Stop the update instance service if running
+        if service_exists(service_name):
+            service_control(service_name, 'stop')
+
+        # Checkout latest version
+        git.git_latest(repo_dir, commit=branch, user=user)
+
+
+# TODO: user and user right for core preparation
+def prepare_core(core_dir, tag='', git_remote_url='', user='', copy_core_dir=''):
+    _log.info("Prepare odoo core %s (tag %s)" % (core_dir, tag))
+    assert core_dir, "'core_dir' missing or none"
+    assert core_dir != '/', "'core_dir' can not be '/'"
+    assert tag, "'tag' missing!"
+    assert core_dir != copy_core_dir, "core_dir and copy_core_dir can not be the same!"
+
+    min_core_folder_size_mb = 3000
+
+    core_name = os.path.basename(core_dir)
+    cores_base_dir = os.path.dirname(core_dir)
+    core_lock_file = pj(cores_base_dir, core_name+'.lock')
+
+    # Check concurrent odoo core update
+    _log.info('Check for core lock file at %s' % core_lock_file)
+    concurrent_lock_counter = 60*12
+    while os.path.exists(core_lock_file) and concurrent_lock_counter > 0:
+        _log.warning('Concurrent update for odoo core running! Wait for %s minutes.' % concurrent_lock_counter)
+        sleep(60)
+        concurrent_lock_counter -= 1
+        if concurrent_lock_counter <= 0:
+            _log.error('Concurrent update check timed out!')
+            raise
+
+    # Check if we may skipp the core update
+    if os.path.exists(core_dir):
+        _log.info('Check if we can skipp the core preparation')
+        core_dir_tag = git.get_tag(core_dir, raise_exception=False)
+        if tag == core_dir_tag and disk_usage(core_dir) > min_core_folder_size_mb:
+            _log.info("Skipping core preparation! Tags %s match and folder size is above %sMb"
+                      "" % (tag, min_core_folder_size_mb))
+            return True
+
+    # Check the free disk space
+    _log.info("Check free disk space for core preparation")
+    if not check_disk_space(os.path.dirname(core_dir), min_free_mb=10000):
+        _log.error('Not enough free disk space!')
+        raise
+
+    # Create core update lock file in the cores base dir
+    _log.info("Creating core-update-lock-file at %s!" % core_lock_file)
+    with open(core_lock_file, 'a+') as core_lock_file_handle:
+        core_lock_file_handle.write('core update to tag %s' % tag)
+
+    # Copy existing core for speed optimization
+    if os.path.exists(copy_core_dir) and not os.path.exists(core_dir):
+        _log.info('Copy existing core %s to %s (performance optimization)' % (copy_core_dir, core_dir))
+        try:
+            _log.info('Clean core-to-copy at %s' % copy_core_dir)
+            git.git_reset(copy_core_dir, user=user)
+            _log.info('Copy core')
+            # HINT: "/." is necessary to copy also all hidden files
+            # HINT: abspath would remove a trailing '/' from the path if any
+            shell(['cp', '-rpf', os.path.abspath(copy_core_dir)+'/.', core_dir])
+        except Exception as e:
+            os.unlink(core_lock_file)
+            _log.warning('Copy of existing core failed! %s' % repr(e))
+            raise e
+
+    # Update existing odoo core
+    if os.path.exists(core_dir) and git.get_tag(core_dir, raise_exception=False):
+        _log.info("Checkout tag %s from %s for odoo core %s as linux user %s"
+                  "" % (tag, git_remote_url, core_dir, user))
+        try:
+            git.git_latest(core_dir, commit=tag, user=user)
+        except Exception as e:
+            os.unlink(core_lock_file)
+            _log.error('Core Checkout failed! %s' % repr(e))
+            raise e
+
+    # Clone (create) odoo core from github
+    else:
+        _log.info("Clone core from %s with tag %s to %s as user %s"
+                  "" % (git_remote_url, tag, core_dir, user))
+        try:
+            # Unlink the core_dir folder if any exits (maybe just a leftover)
+            if os.path.exists(core_dir):
+                _log.warning("Deleting faulty core_dir at %s" % core_dir)
+                assert len(core_dir.split('/')) > 4, "Stopped for safety reasons! Not enough Subfolders!"
+                shell(['rm', '-rf', core_dir], user=user, cwd=cores_base_dir)
+            # HINT: branch can also take tags and detaches the HEAD at that commit in the resulting repository
+            git.git_clone(git_remote_url, branch=tag, target_dir=core_dir, cwd=os.path.dirname(core_dir), user=user)
+        except Exception as e:
+            os.unlink(core_lock_file)
+            _log.error("Could not clone core! %s" % repr(e))
+            raise e
+
+    # Core preparation successfully done
+    os.unlink(core_lock_file)
+    _log.info("Core %s was successfully prepared!" % core_dir)
+    return True
+
+
+def send_email(subject='', body='', sender='admin@datadialog.net', recipient='admin@datadialog.net',
+               smtp_server='192.168.37.1', smtp_port='25', raise_exception=False, timeout=5):
+    body = subject if not body else body
+    _log.info('Send email to "%s" with subject: "%s"' % (recipient, subject))
+
+    # prepare email message
+    try:
+        msg = MIMEMultipart()
+        msg['From'] = sender
+        msg['To'] = recipient
+        body = msg['Subject']
+        msg.attach(MIMEText(body, 'plain'))
+    except Exception as e:
+        _log.warning("Could not prepare email! %s" % repr(e))
+        if raise_exception:
+            raise e
+        else:
+            return False
+
+    # send email
+    server = None
+    try:
+        server = smtplib.SMTP(smtp_server, smtp_port, timeout=timeout)
+        server.sendmail(sender, recipient, msg.as_string())
+    except Exception as e:
+        _log.warning("Could not send email! %s" % repr(e))
+        if raise_exception:
+            raise e
+    finally:
+        try:
+            if server:
+                server.quit()
+        except Exception as e:
+            _log.error("Could not quit smpt server session! %s" % repr(e))

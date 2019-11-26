@@ -61,10 +61,9 @@ class Settings:
 
         # Instance odoo-core information
         self.core_remote_url = 'https://github.com/OpenAT/online.git'
-        if not os.path.exists(self.instance_core_dir) and update_instance_mode:
-            _log.warning('Odoo core of update_instance not found at %s' % self.instance_core_dir)
-            self.core_commit = ''
-            self.core_tag = ''
+        if update_instance_mode:
+            self.core_commit = git.get_sha1(self.instance_core_dir, raise_exception=False)
+            self.core_tag = git.get_tag(self.instance_core_dir, raise_exception=False)
         else:
             # core_commit
             self.core_commit = git.get_sha1(self.instance_core_dir)
@@ -83,7 +82,7 @@ class Settings:
 
                 # Development Server
                 else:
-                    self.core_tag = False
+                    self.core_tag = ''
                     _log.warning(core_tag_msg)
 
         # Check that the odoo core release tag matches the instance.ini core tag
@@ -246,13 +245,25 @@ class Settings:
 
         # Status and update information
         if not update_instance_mode:
-            status_ini_file = pj(instance_dir, 'status.ini')
+
+            # DEPRECATED: 'status.ini'
+            # WARNING: status.ini is deprecated since the new logging is good enough!
+            #          The update_lock_file must be used to suppress updates!
+            self.status_ini_name = 'status.ini'
+            status_ini_file = pj(instance_dir, self.status_ini_name)
             self.status_ini_file = status_ini_file if os.path.isfile(status_ini_file) else ''
             self.status_ini_dict = tools.inifile_to_dict(instance_ini_file) if self.status_ini_file else dict()
             self.no_update = self.status_ini_dict.get('no_update', False)
             self.update_failed = self.status_ini_dict.get('update_failed', False)
             self.restore_failed = self.status_ini_dict.get('restore_failed', False)
+            assert not self.no_update, "no_update set in status.ini"
+            assert not self.update_failed, "update_failed set in status.ini"
+            assert not self.restore_failed, "restore_failed set in status.ini"
+            if self.status_ini_file:
+                _log.warning("status.ini is deprecated! Please delete the file at %s!" % self.status_ini_file)
+
             assert not self.restore_failed, "'restore_failed' is set in status.ini at %s" % self.status_ini_file
+            # 'update.lock'
             self.update_lock_file_name = 'update.lock'
             self.update_lock_file = pj(instance_dir, self.update_lock_file_name)
 

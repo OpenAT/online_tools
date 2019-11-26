@@ -41,7 +41,9 @@ import logging
 _log = logging.getLogger()
 _log.setLevel(logging.DEBUG)
 # Create a format object to be used in log handlers
-log_formatter = logging.Formatter(fmt='%(asctime)s %(levelname)-8s %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
+#log_formatter = logging.Formatter(fmt='%(asctime)s %(levelname)-8s %(module)s@%(lineno)d: %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
+log_formatter = logging.Formatter(fmt='%(asctime)s %(levelname)-8s %(module)-14s %(message)s',
+                                  datefmt='%Y-%m-%d %H:%M:%S')
 # Log in GMT time (instead of localtime)
 log_formatter.converter = time.gmtime
 # Start a log handler and add it to the logger
