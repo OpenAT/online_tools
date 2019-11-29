@@ -10,6 +10,31 @@ import logging
 _log = logging.getLogger()
 
 
+# Not used but here as a reference
+# https://stackoverflow.com/questions/12034393/import-side-effects-on-logging-how-to-reset-the-logging-module
+def reset_logging():
+    manager = logging.root.manager
+    manager.disabled = logging.NOTSET
+    for logger in manager.loggerDict.values():
+        if isinstance(logger, logging.Logger):
+            logger.setLevel(logging.NOTSET)
+            logger.propagate = True
+            logger.disabled = False
+            logger.filters.clear()
+            handlers = logger.handlers.copy()
+            for handler in handlers:
+                # Copied from `logging.shutdown`.
+                try:
+                    handler.acquire()
+                    handler.flush()
+                    handler.close()
+                except (OSError, ValueError):
+                    pass
+                finally:
+                    handler.release()
+                logger.removeHandler(handler)
+
+
 def start(instance_dir, cmd_args=None, log_file=''):
     cmd_args = list() if not cmd_args else cmd_args
 
@@ -59,9 +84,10 @@ def start(instance_dir, cmd_args=None, log_file=''):
     _log.info("Run odoo.main() from odoo.py")
     _log.info("---")
 
-    # Reset logging module
-    # logging.shutdown()
-    reload(logging)
+    # Reset logging module before we start odoo
+    root_logger = logging.getLogger()
+    for handler in root_logger.handlers[:]:
+        root_logger.removeHandler(handler)
 
     import odoo
     odoo.main()

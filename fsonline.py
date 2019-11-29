@@ -34,6 +34,7 @@ from restore import restore
 from update import update
 
 import logging
+import logging.handlers
 
 # Globally initialize the logging for this file
 # Get a handle to the root logger (or instantiate it the first and only time)
@@ -41,19 +42,18 @@ import logging
 _log = logging.getLogger()
 _log.setLevel(logging.DEBUG)
 # Create a format object to be used in log handlers
-#log_formatter = logging.Formatter(fmt='%(asctime)s %(levelname)-8s %(module)s@%(lineno)d: %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
 log_formatter = logging.Formatter(fmt='%(asctime)s %(levelname)-8s %(module)-14s %(message)s',
                                   datefmt='%Y-%m-%d %H:%M:%S')
 # Log in GMT time (instead of localtime)
 log_formatter.converter = time.gmtime
 # Start a log handler and add it to the logger
-log_handler = logging.StreamHandler(sys.stdout)
+log_sys_handler = logging.StreamHandler(sys.stdout)
 # Configure the log format for the new handler
-log_handler.setFormatter(log_formatter)
+log_sys_handler.setFormatter(log_formatter)
 # Set log handler output level
-log_handler.setLevel(logging.DEBUG)
+log_sys_handler.setLevel(logging.DEBUG)
 # Add the handler to the root logger
-_log.addHandler(log_handler)
+_log.addHandler(log_sys_handler)
 
 
 def excepthook(*eargs):
@@ -167,17 +167,16 @@ if __name__ == "__main__":
         assert os.access(os.path.dirname(known_args.log_file), os.W_OK), 'Logfile location %s not writeable!' \
                                                                          '' % known_args.log_file
 
-        # Rest the log handler(s)
-        for handler in _log.handlers[:]:
-            _log.removeHandler(handler)
+        # Remove the syslog handler as we log to file from now on
+        _log.removeHandler(log_sys_handler)
 
-        # Add the file handler
-        log_handler = logging.FileHandler(filename=known_args.log_file)
-        log_handler.setFormatter(log_formatter)
-        log_handler.setLevel(log_level)
+        # Create the file log handler
+        log_file_handler = logging.handlers.WatchedFileHandler(filename=known_args.log_file)
+        log_file_handler.setFormatter(log_formatter)
+        log_file_handler.setLevel(log_level)
 
-        # Add the log handler to the root logger
-        _log.addHandler(log_handler)
+        # Add the file log handler to the root logger
+        _log.addHandler(log_file_handler)
 
     # Log script start
     _log.info('================================================================================')

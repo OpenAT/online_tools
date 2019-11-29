@@ -136,7 +136,7 @@ class Settings:
 
         # Check that the odoo core release tag matches the instance.ini core tag
         if self.instance_core_tag != self.core_tag:
-            msg = ("Core commit tag from instance.ini (%s) not matching core_tag (%s) for commit in core dir %s!"
+            msg = ("Core commit tag from instance.ini '%s' not matching core_tag '%s' for commit in core dir %s!"
                    "" % (self.instance_core_tag, self.core_tag, self.instance_core_dir))
             if self.production_server and not update_instance_mode:
                 raise Exception(msg)
@@ -272,6 +272,8 @@ class Settings:
         # startup args
         self.startup_args = set_arg(self.startup_args, '--db-template', self.db_template)
 
+
+
         # odoo addon paths
         # ----------------
         # addons_path
@@ -329,6 +331,30 @@ class Settings:
         if not os.path.isdir(self.filestore):
             _log.warning("'filestore' directory does not exist at %s" % self.filestore)
         assert self.filestore != '/', "Filestore path is '/'!"
+
+        # ----------------------------
+        # DEFAULT ODOO STARTUP OPTIONS
+        # ----------------------------
+
+        # --db-filter
+        if '--db-filter' not in sargs and 'dbfilter' not in self.server_conf:
+            self.startup_args = set_arg(self.startup_args, '--db-filter', '^'+self.db_name+'$')
+
+        # --no-database-list
+        if '--no-database-list' not in sargs and 'list_db' not in self.server_conf:
+            self.startup_args = set_arg(self.startup_args, '--no-database-list')
+
+        # --proxy-mode
+        if '--proxy-mode' not in sargs and 'proxy_mode' not in self.server_conf:
+            self.startup_args = set_arg(self.startup_args, '--proxy-mode')
+
+        # --load=SERVER_WIDE_MODULES (Comma-separated list of server-wide modules)
+        if '--load' not in sargs and 'server_wide_modules' not in self.server_conf:
+            self.startup_args = set_arg(self.startup_args, '--load', 'web,web_kanban,dbfilter_from_header,connector')
+
+        # --without-demo=all
+        if '--without-demo' not in sargs and 'without_demo' not in self.server_conf:
+            self.startup_args = set_arg(self.startup_args, '--without-demo', 'all')
 
         # -----------
         # HELPER DATA

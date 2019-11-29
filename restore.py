@@ -1,5 +1,6 @@
 # -*- coding: utf-'8' "-*-"
 import os
+from os.path import join as pj
 import shutil
 import zipfile
 import tempfile
@@ -15,7 +16,6 @@ import logging
 _log = logging.getLogger()
 
 
-# TODO: WARNING: SET backup_before_drop=TRUE after debugging and testing is done!
 def restore(instance_dir, backup_zip_file, mode='manual', log_file='', cmd_args=None, settings=None,
             backup_before_drop=True, start_after_restore=False, timeout=60*60*3):
     cmd_args = list() if not cmd_args else cmd_args
@@ -30,8 +30,10 @@ def restore(instance_dir, backup_zip_file, mode='manual', log_file='', cmd_args=
     logging.info('----------------------------------------')
     logging.info('RESTORE instance %s' % instance)
     logging.info('----------------------------------------')
-    assert os.path.isdir(instance_dir), 'Instance directory not found at %s' % instance_dir
+    assert os.path.isfile(pj(instance_dir, 'instance.ini')), 'Not an instance directory! %s' % instance_dir
     assert os.path.isfile(backup_zip_file), 'Backup zip file not found at %s' % backup_zip_file
+    if not backup_before_drop:
+        assert '_update' in instance, "'backup_before_drop' must be enabled for non update instances!"
 
     # Load instance configuration
     _log.info("Prepare settings")
