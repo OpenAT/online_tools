@@ -37,7 +37,8 @@ _min_odoo_backup_space_mb = 20000
 #     odoo = ServerProxy('http://'+xmlrpc_interface+'/xmlrpc/db')
 
 
-def backup(database, backup_file, host='http://127.0.0.1:8069', master_pwd='admin'):
+def backup(database, backup_file, host='http://127.0.0.1:8069', master_pwd='admin', timeout=60*60*4):
+    # TODO: Honour timeout
     backup_file = os.path.abspath(backup_file)
     _log.info("Start Odoo backup of database %s at host %s to %s" % (database, host, backup_file))
     assert os.access(os.path.dirname(backup_file), os.W_OK), 'Backup location %s not writeable!' % backup_file
@@ -72,7 +73,7 @@ def backup(database, backup_file, host='http://127.0.0.1:8069', master_pwd='admi
     return backup_file
 
 
-def backup_manual(db_url='', data_dir='', backup_file=''):
+def backup_manual(db_url='', data_dir='', backup_file='', timeout=60*60*4):
     database = db_url.rsplit('/', 1)[1]
     assert database, "Database name not found in db_url!"
 
@@ -113,7 +114,7 @@ def backup_manual(db_url='', data_dir='', backup_file=''):
     _log.info("Backup database %s via pg_dump to %s" % (database, db_file))
     try:
         shell(['pg_dump', '--format=p', '--no-owner', '--dbname=' + db_url, '--file=' + db_file],
-              log_info=False, timeout=60 * 30)
+              log=False, timeout=timeout)
     except Exception as e:
         _log.error("Database backup via pg_dump failed! %s" % repr(e))
         raise e

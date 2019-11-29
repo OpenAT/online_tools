@@ -5,11 +5,17 @@ from time import sleep
 import datetime
 import ConfigParser
 import psutil
-from psutil import NoSuchProcess
+import sys
 
-from tools_settings import Settings
-from tools_shell import find_file
-from tools import prepare_repository, prepare_core, inifile_to_dict, send_email
+from tools_settings import Settings, set_arg
+from tools_shell import find_file, shell
+from tools_git import git_latest, get_sha1
+from tools import prepare_repository, prepare_core, inifile_to_dict, send_email, find_addons_to_update, \
+    service_control, service_exists, service_running
+from backup import backup
+from restore import restore
+from start import start
+
 
 import logging
 _log = logging.getLogger()
@@ -60,12 +66,16 @@ def _update_checks(settings, parallel_updates=2):
     return True
 
 
-def _prepare_update(instance_settings_obj):
+def _prepare_update(instance_settings_obj, timeout=60*60*4):
+    # ATTENTION: Must raise an exception if anything goes wrong!
     assert instance_settings_obj, "Instance settings missing!"
     s = instance_settings_obj
 
-    # TODO: return the addons-to-update or raise an exception.
-    #       If there are no addons to update return an empty list
+    # Return dictionary format
+    result = {'updated_to_commit': '',
+              'pre_update_backup': '',
+              'addons_to_update': '',
+              'addons_string': ''}
 
     # Prepare the update_instance repository directory
     # ------------------------------------------------
@@ -78,12 +88,19 @@ def _prepare_update(instance_settings_obj):
     # Get update_instance settings
     # ----------------------------
     s_upd = Settings(update_instance_dir, startup_args=s.startup_args, log_file=s.log_file, update_instance_mode=True)
+    send_email(subject='FS-Online update started for instance %s to core %s and instance-commit %s'
+                       '' % (s.instance.upper(), s_upd.core_tag, s_upd.git_commit))
     assert s.instance != s_upd.instance, "Instance '%s' and update_instance '%s' can not be the same!" % (
         s.instance, s_upd.instance)
+
     # Check the git commits
     if s.git_commit == s_upd.git_commit:
-        _log.warning("Commit did not change! Update is not necessary!")
-        return list()
+        _log.warning("COMMIT DID NOT CHANGE! UPDATE IS NOT NECESSARY!")
+        # HINT: This is an expected result and therefore should NOT raise an exception!
+        return result
+
+    # Append update-commit-target commit to the result
+    result['updated_to_commit'] = s_upd.git_commit
 
     # Prepare the update_instance odoo core (and therefore the core for the final update)
     # -----------------------------------------------------------------------------------
@@ -97,34 +114,157 @@ def _prepare_update(instance_settings_obj):
 
     # Search for addons-to-update
     # ---------------------------
-    # Search for changed core addons
-    # Search for changed instance addons
-    # use -u all if more than 6 addons have changed (maybe we need a way to force -u all )
-    # Stop here if no addons to update are found
-    # Search for changed core translations
-    # Search for changed instance translations
-    # Return an empty list if there are no addons to update!
+    addons_to_update = find_addons_to_update(s, s_upd)
+    if not addons_to_update:
+        _log.warning("NO ADDONS TO UPDATE FOUND! SKIPPING THE DRY-RUN UPDATE TEST AND THE PRE-UPDATE-BACKUP!")
+        return result
 
-    # Backup the instance and restore in the update_instance
-    # ------------------------------------------------------
+    # Prepare the odoo startup arguments addons string
+    addons_string = 'all' if len(addons_to_update) >= 6 else ','.join(addons_to_update)
+
+    # Append addons-to-update to the result
+    result['addons_to_update'] = addons_to_update
+    result['addons_string'] = addons_string
+
+    # Backup the current instance and restore it in the update_instance
+    # -----------------------------------------------------------------
+    # Backup
+    _log.info('Creating pre-update-backup')
+    pre_update_backup = backup(s.instance_dir, log_file=s_upd.log_file, settings=s)
+
+    # Append pre_update_backup file to the result
+    result['pre_update_backup'] = pre_update_backup
+
+    # Restore
+    _log.info('Pre-update-backup was created at %s' % pre_update_backup)
+    _log.info('Restoring pre-update-backup "%s" for the update_instance %s' % (pre_update_backup, s_upd.instance))
+    assert restore(s_upd.instance_dir, pre_update_backup,
+                   log_file=s_upd.log_file, settings=s_upd,
+                   backup_before_drop=False, start_after_restore=False
+                   ), "Restore of pre-update backup %s failed!" % pre_update_backup
+    _log.info('Pre-update-backup %s was restored for update_instance %s and db %s'
+              '' % (pre_update_backup, s_upd.instance, s_upd.db_name))
+
+    # Stop the update_instance service if any
+    # ---------------------------------------
+    if service_exists(s_upd.instance):
+        service_control(s_upd.instance, 'stop')
 
     # Dry-Run/Test the update in the update_instance
     # ----------------------------------------------
-    # Backup the instance
-    # Restore the backup to the dry-run update_instance
-    # Test-Run the addon updates
-    # Test-Run the language updates
+    _log.info("Test (dry-run) the update in the update_instance!")
+    python_exec = str(sys.executable)
+
+    odoo_server = pj(s_upd.instance_core_dir, 'odoo/openerp-server')
+    odoo_cwd = pj(s_upd.instance_core_dir, 'odoo')
+
+    odoo_sargs = s_upd.startup_args[:]
+    odoo_sargs = set_arg(odoo_sargs, key='-u', value=addons_string)
+    odoo_sargs = set_arg(odoo_sargs, key='--stop-after-init')
+
+    res = shell([python_exec]+[odoo_server]+odoo_sargs, cwd=odoo_cwd, user=s_upd.linux_user, timeout=timeout)
+    # Todo: check if we should prevent this if a logfile is given!
+    _log.info('Dry-Run-Update log/result:\n\n---\n%s\n---\n' % str(res))
+
     # return addons_to_update
+    _log.info('Dry-Run-Update was successfully!')
+    return result
 
 
-def _update(instance_settings_obj, pre_update_backup, addons_to_update):
+def _update(instance_settings_obj, target_commit='', pre_update_backup='', addons_to_update=None, addons_string='',
+            timeout=60*60*4, log_file=''):
     assert instance_settings_obj, "Instance settings missing!"
+    assert len(target_commit) >= 2, "Update-target-commit seems incorrect! %s" % target_commit
     s = instance_settings_obj
+    _log.info('Starting update of the production instance "%s" to commit "%s" with addon-updates for %s'
+              '' % (s.instance, target_commit, str(addons_to_update)))
+    if addons_to_update or addons_string:
+        assert os.path.isfile(pre_update_backup), "Pre-Update-Backup file is missing at %s" % pre_update_backup
+        assert addons_to_update and addons_string, "addons_to_update and addons_string must be given or none of them!"
 
-    # Stop the service
-    # Run the update
-    # Restore pre update backup if the update fails
-    # Send message to sysadmin
+    # Stop the odoo instance service
+    # ------------------------------
+    if service_exists(s.linux_instance_service):
+        service_control(s.linux_instance_service, 'stop')
+        assert not service_running(s.linux_instance_service), "Could not stop the instance service!"
+
+    # Checkout the update-target-commit
+    # ---------------------------------
+    try:
+        git_latest(s.instance_dir, commit=target_commit, user=s.linux_user)
+        assert get_sha1(s.instance_dir, raise_exception=False) == target_commit, \
+            "Instance-directory-sha1 does not match update-target-commit-sha1 after checkout!"
+
+    # Restore in case of an error
+    except Exception as e:
+        _log.error('Could not checkout the update-target-commit! %s' % repr(e))
+
+        # Restore original commit if needed
+        if get_sha1(s.instance_dir, raise_exception=False) != s.git_commit:
+            _log.info('Try to restore pre-update instance commit %s' % s.git_commit)
+            try:
+                git_latest(s.instance_dir, commit=s.git_commit, user=s.linux_user)
+                assert get_sha1(s.instance_dir, raise_exception=False) == s.git_commit, \
+                    "Instance-commit does not match pre-update commit!"
+            except Exception as e2:
+                _log.critical('Could not restore pre-update instance commit %s' % s.git_commit)
+                raise e2
+
+        # Restart the instance service
+        if service_exists(s.linux_instance_service):
+            service_control(s.linux_instance_service, 'start')
+            assert service_running(s.linux_instance_service), "Could not start the instance service!"
+
+        # If the restore of the original commit worked and the service could be started we can return 'False'
+        _log.error('Update of the production database failed.')
+        return False
+
+    # Skipp addons update
+    # -------------------
+    if not addons_to_update or not addons_string:
+        _log.warning("NO ADDONS TO UPDATE! SKIPPING THE -u ODOO UPDATE!")
+
+        # Restart the instance service
+        if service_exists(s.linux_instance_service):
+            service_control(s.linux_instance_service, 'start')
+            assert service_running(s.linux_instance_service), "Could not start the instance service!"
+
+        _log.info('Update done and instance running!')
+        return True
+
+    # Run the addons update
+    # ---------------------
+    _log.info("Run the odoo addons update!")
+    python_exec = str(sys.executable)
+
+    odoo_server = pj(s.instance_core_dir, 'odoo/openerp-server')
+    odoo_cwd = pj(s.instance_core_dir, 'odoo')
+
+    odoo_sargs = s.startup_args[:]
+    odoo_sargs = set_arg(odoo_sargs, key='-u', value=addons_string)
+    odoo_sargs = set_arg(odoo_sargs, key='--stop-after-init')
+
+    try:
+        res = shell([python_exec]+[odoo_server]+odoo_sargs, cwd=odoo_cwd, user=s.linux_user, timeout=timeout)
+        # Todo: check if we should prevent this if a logfile is given!
+        _log.info('Production instance odoo addons update log/result:\n\n---\n%s\n---\n' % str(res))
+
+    # Restore in case of an error
+    except Exception as e:
+        _log.error('Update of the odoo addons failed in the production instance! %s' % repr(e))
+        # Restore commit and pre-update-backup
+        try:
+            _log.warning("Try to restore pre-update-commit and backup after failed update!")
+            git_latest(s.instance_dir, commit=s.git_commit, user=s.linux_user)
+            assert get_sha1(s.instance_dir, raise_exception=False) == s.git_commit, \
+                "Instance-commit does not match pre-update commit!"
+            restore(s.instance_dir, pre_update_backup, log_file=log_file, start_after_restore=True)
+            assert service_running(s.linux_instance_service)
+        except Exception as e2:
+            _log.critical("Restoring the instance to pre-update-backup failed! %s" % repr(e))
+            raise e2
+        _log.error('Update of the production database failed but pre-update restore was successful.')
+        return False
 
     return True
 
@@ -143,17 +283,18 @@ def update(instance_dir, cmd_args=None, log_file='', parallel_updates=2):
     # Get instance settings
     s = Settings(instance_dir, startup_args=cmd_args, log_file=log_file)
 
-    subject_success = 'FS-Online update DONE for instance %s' % s.instance
-    subject_error = 'FS-Online update FAILED for instance %s' % s.instance
-
     # Send update-start email
-    send_email(subject='FS-Online update started for instance %s at %s' % (s.instance, start))
+    send_email(subject='FS-Online update for instance %s was requested at %s' % (s.instance.upper(), start))
+
+    # Prepare update-end email message subjects
+    subject_success = 'FS-Online update for instance %s is DONE! ' % s.instance
+    subject_error = 'FS-Online update for instance %s has FAILED! ' % s.instance
 
     # Pre update checks
     try:
         _update_checks(s, parallel_updates=parallel_updates)
     except Exception as e:
-        msg = 'Pre-update checks failed! %s' % repr(e)
+        msg = "FS-Online update for instance %s failed at pre-update-checks! %s" % (s.instance.upper(), repr(e))
         _log.error(msg)
         send_email(subject=subject_error, body=msg)
         return False
@@ -170,9 +311,12 @@ def update(instance_dir, cmd_args=None, log_file='', parallel_updates=2):
 
     # Prepare the update
     try:
-        _prepare_update(instance_settings_obj=s)
+        prepare_upd = _prepare_update(instance_settings_obj=s)
+        if any(v for k, v in prepare_upd.iteritems()):
+            assert all(v for k, v in prepare_upd.iteritems()), \
+                "Return information of _prepare_update() seems incorrect: %s" % prepare_upd
     except Exception as e:
-        msg = "Pre-Update preparations failed! %s" % repr(e)
+        msg = "FS-Online update for instance %s failed at pre-update-preparations! %s" % (s.instance.upper(), repr(e))
         _log.error(msg)
         os.unlink(s.update_lock_file)
         send_email(subject=subject_error, body=msg)
@@ -180,15 +324,24 @@ def update(instance_dir, cmd_args=None, log_file='', parallel_updates=2):
 
     # Update the production instance
     try:
-        update_done = _update(instance_settings_obj=s)
+        update_done = _update(instance_settings_obj=s,
+                              pre_update_backup=prepare_upd['pre_update_backup'],
+                              addons_to_update=prepare_upd['addons_to_update'],
+                              addons_string=prepare_upd['addons_string'],
+                              log_file=log_file)
     except Exception as e:
-        msg = "Update failed with unexpected exception! %s" % repr(s)
+        msg = "FS-Online update for instance %s failed with unexpected exception!\n\n%s" % (s.instance.upper(), repr(e))
         _log.critical(msg)
         # HINT: Do !NOT! remove the update_lock_file because an unexpected exception was raised in the final update!
-        send_email(subject=subject_error+' with unexpected exception!!!', body=msg)
+        send_email(subject=subject_error+' WITH UNEXPECTED EXCEPTION!!!', body=msg)
+        send_email(subject=subject_error + ' WITH UNEXPECTED EXCEPTION!!!', body=msg,
+                   recipient='michael.karrer@datadialog.net')
         return False
 
     # Finish the update
-    msg = "Update successfully done!" if update_done else "Update failed! But service was successfully restored!"
+    if update_done:
+        msg = "FS-Online update for instance %s successfully DONE!" % s.instance.upper()
+    else:
+        msg = "FS-Online update for instance %s FAILED! But service seems to be restored!" % s.instance.upper()
     send_email(subject=subject_success if update_done else subject_error, body=msg)
     return update_done

@@ -7,6 +7,7 @@ import tempfile
 from tools_settings import Settings
 from tools_db import drop_db, connection_check, create_db
 from tools_shell import shell
+from tools import service_exists, service_control, service_running
 import tools_odoo
 from backup import backup
 
@@ -15,7 +16,8 @@ _log = logging.getLogger()
 
 
 # TODO: WARNING: SET backup_before_drop=TRUE after debugging and testing is done!
-def restore(instance_dir, backup_zip_file, cmd_args=None, log_file='', mode='manual', backup_before_drop=False):
+def restore(instance_dir, backup_zip_file, mode='manual', log_file='', cmd_args=None, settings=None,
+            backup_before_drop=True, start_after_restore=False, timeout=60*60*3):
     cmd_args = list() if not cmd_args else cmd_args
     mode_allowed = ('all', 'http', 'manual')
     assert mode in mode_allowed, "mode must be one of %s" % str(mode_allowed)
@@ -33,7 +35,8 @@ def restore(instance_dir, backup_zip_file, cmd_args=None, log_file='', mode='man
 
     # Load instance configuration
     _log.info("Prepare settings")
-    s = Settings(instance_dir, startup_args=cmd_args, log_file=log_file)
+    s = settings if settings else Settings(instance_dir, startup_args=cmd_args, log_file=log_file)
+    assert s.filestore, "'filestore' directory is missing in odoo settings! %s" % str(s.filestore)
 
     # Connect to the instance database and set "db_exists"
     _log.info("Check if the database %s exists" % s.db_name)
@@ -55,7 +58,7 @@ def restore(instance_dir, backup_zip_file, cmd_args=None, log_file='', mode='man
         _log.warning("Remove existing filestore at %s" % s.filestore)
         shutil.rmtree(s.filestore)
 
-    # For multiple mode attempts
+    # Restore state for "multiple mode" attempts
     restore_done = False
 
     # mode http: Restore by odoo (via http connection)
@@ -75,7 +78,10 @@ def restore(instance_dir, backup_zip_file, cmd_args=None, log_file='', mode='man
     if mode in ('all', 'manual') and not restore_done:
         _log.info("Restore backup manually by sql and file copy")
 
-        # TODO: Make sure the odoo service is down
+        # Stop the odoo service
+        if service_exists(s.linux_instance_service):
+            service_control(s.linux_instance_service, 'stop')
+            assert not service_running(s.linux_instance_service), "Could not stop service %s" % s.linux_instance_service
 
         # Restore 'filestore' folder
         _log.info('Restore filestore from %s to %s' % (backup_zip_file, s.filestore))
@@ -104,7 +110,7 @@ def restore(instance_dir, backup_zip_file, cmd_args=None, log_file='', mode='man
         # Restore dump.sql
         _log.info("Restore dump.sql from backup archive with psql to database %s" % s.db_name)
         try:
-            shell(['psql', '-d', s.db_url, '-f', dump_file.name], log_info=False, timeout=60 * 60 * 1)
+            shell(['psql', '-d', s.db_url, '-f', dump_file.name], log=False, timeout=timeout)
             restore_done = True
         except Exception as e:
             _log.error("Restore dump.sql from backup archive with psql failed! %s" % repr(e))
@@ -115,8 +121,10 @@ def restore(instance_dir, backup_zip_file, cmd_args=None, log_file='', mode='man
         _log.info("Unlink temp file for dump.sql")
         os.unlink(dump_file.name)
 
-    # TODO: (Re)Start the odoo service
-    # HINT: Files may be missing if the service is not restarted after restore!
+    # Start the odoo service
+    if start_after_restore and service_exists(s.linux_instance_service):
+        service_control(s.linux_instance_service, 'start')
+        assert service_running(s.linux_instance_service), "Could not start service %s" % s.linux_instance_service
 
     if restore_done:
         _log.info('RESTORE OF INSTANCE %s FROM %s DONE!' % (s.instance, backup_zip_file))

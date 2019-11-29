@@ -8,7 +8,7 @@ import smtplib
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 
-from tools_shell import check_disk_space, disk_usage, shell
+from tools_shell import check_disk_space, disk_usage, shell, find_file
 import tools_git as git
 
 import logging
@@ -234,3 +234,41 @@ def send_email(subject='', body='', sender='admin@datadialog.net', recipient='ad
                 server.quit()
         except Exception as e:
             _log.error("Could not quit smpt server session! %s" % repr(e))
+
+
+def find_addons_to_update(instance_settings, update_instance_settings,
+                          watched_extensions=('.py', '.xml', '.po', '.pot', '.csv')):
+    s = instance_settings
+    s_upd = update_instance_settings
+    _log.info("Find addons with changes between %s and %s" % (s.instance_dir, s_upd.instance_dir))
+
+    # All changed files
+    core_changed_files = git.git_diff(s_upd.instance_core_dir, s.core_commit, s_upd.core_commit)
+    inst_changed_files = git.git_diff(s_upd.instance_dir, s.git_commit, s_upd.git_commit)
+    changed_files = core_changed_files+inst_changed_files
+    _log.info("Found %s changed file(s)!" % len(changed_files))
+
+    # Watched files
+    watched_files = list()
+    for cf in changed_files:
+        cf_abs = os.path.abspath(cf)
+        if os.path.splitext(cf_abs)[1].lower() in watched_extensions:
+            if os.path.islink(cf_abs):
+                watched_files.append(os.path.realpath(cf_abs))
+            elif os.path.isfile(cf_abs):
+                watched_files.append(cf_abs)
+    _log.info("Found %s watched file(s)!" % len(watched_files))
+    _log.info("Watched files: %s" % str(watched_files))
+
+    # Addons with changes
+    addons_to_update = list()
+    remaining = set(watched_files)
+    for addon_dir in s_upd.all_addon_directories:
+        changes = [f for f in remaining if f.startswith(addon_dir)]
+        if changes:
+            _log.info("Addon at %s has changed files %s" % (addon_dir, changes))
+            addons_to_update.append(os.path.basename(addon_dir))
+            remaining = remaining - set(changes)
+
+    _log.info("Addon(s) to update: %s" % str(addons_to_update))
+    return addons_to_update

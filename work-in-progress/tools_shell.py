@@ -86,8 +86,8 @@ def _switch_user_function(user_uid, user_gid):
 
 
 # Linux-Shell wrapper
-def shell(cmd=list(), user=None, cwd=None, env=None, preexec_fn=None, **kwargs):
-    _log.debug("Run shell command: %s" % cmd)
+def shell(cmd=list(), user=None, cwd=None, env=None, preexec_fn=None, log=True, **kwargs):
+    _log.debug("Run shell command: %s" % cmd if log else '**********')
     assert isinstance(cmd, (list, tuple)), 'shell(cmd): cmd must be of type list or tuple!'
 
     # Working directory
@@ -114,7 +114,7 @@ def shell(cmd=list(), user=None, cwd=None, env=None, preexec_fn=None, **kwargs):
         preexec_fn = _switch_user_function(linux_user_obj.pw_uid, linux_user_obj.pw_gid)
 
     # Log user Current-Working-Directory and shell command to be executed
-    _log.info('[%s@%s]$ %s' % (linux_user_obj.pw_name, cwd, ' '.join(cmd)))
+    _log.info('[%s@%s]$ %s' % (linux_user_obj.pw_name, cwd, ' '.join(cmd) if log else '**********'))
 
     # Execute shell command and return its output
     # HINT: this was the original solution but this will not log errors but send it to sys.stderr
@@ -188,29 +188,35 @@ def test_zip(zip_file):
         raise e
 
 
-def make_zip_archive(output_filename=None, source_dir=None, verify_archive=False):
+def make_zip_archive(output_filename=None, source_dir=None, verify_archive=False, prefix_source_folder=False):
     """
     Will create a zip archive with relative file paths
     :param output_filename: Path and name of the zip archive file to create
     :param source_dir: Folder that should be zipped
     :return:
     """
-    relroot = os.path.abspath(os.path.join(source_dir, os.pardir))
+    if prefix_source_folder:
+        # HINT: os.pardir = '..' so this is like 'cd..'
+        relroot = os.path.abspath(os.path.join(source_dir, os.pardir))
+    else:
+        relroot = os.path.abspath(source_dir)
 
     # Open the zip archive
     with zipfile.ZipFile(output_filename, "w", compression, allowZip64=True) as archive_file:
 
         # Walk through all the files and folders
         for root, dirs, files in os.walk(source_dir):
+            relpath = os.path.relpath(root, relroot)
+            relpath = '' if relpath == '.' else relpath
 
             # Add directory (needed for empty dirs)
-            archive_file.write(root, os.path.relpath(root, relroot))
+            archive_file.write(root, relpath)
 
             # Add regular files
             for f in files:
                 filename = os.path.join(root, f)
                 if os.path.isfile(filename):
-                    archive_name = os.path.join(os.path.relpath(root, relroot), f)
+                    archive_name = os.path.join(relpath, f)
                     archive_file.write(filename, archive_name)
 
     # Test the zip archive
@@ -218,7 +224,7 @@ def make_zip_archive(output_filename=None, source_dir=None, verify_archive=False
         test_zip(output_filename)
 
 
-def find_file(file_name, start_dir='/', max_finds=0, exclude_folders=tuple(), walk_method=None):
+def find_file(file_name, start_dir='/', max_finds=0, exclude_folders=tuple(), walk_method=None, topdown=True):
     start = time.time()
     exclude_folders = list(set(exclude_folders))
 
@@ -235,7 +241,7 @@ def find_file(file_name, start_dir='/', max_finds=0, exclude_folders=tuple(), wa
             walk_method = os.walk
 
     res = []
-    for root_folder, sub_folders, files in walk_method(start_dir, topdown=True):
+    for root_folder, sub_folders, files in walk_method(start_dir, topdown=topdown):
 
         # Exclude unwanted folders
         if exclude_folders:

@@ -1,5 +1,6 @@
 # -*- coding: utf-'8' "-*-"
 import os
+from os.path import join as pj
 
 from tools_shell import shell, retry
 
@@ -228,3 +229,15 @@ def git_latest(path, commit='o8', user=None, pull=False):
 
     return True
 
+
+# TODO: I used a different method in start.py to check for differences in submodules?!?
+#       Test if adding, changing and removing submodules work as expected
+def git_diff(path, commit_a, commit_b, diff_filter='ACMR', user=None):
+    _log.info('Git: Diff "%s" between commit "%s" and commit "%s"' % (path, commit_a, commit_b))
+    assert os.path.isdir(path), "Directory missing at %s" % path
+
+    changed_files = shell(['git', '-C', path, 'diff', '--name-only', '--diff-filter='+diff_filter, commit_a, commit_b],
+                          cwd=path, user=user)
+    changed_files_fullpath = [pj(path, f) for f in changed_files.splitlines()]
+
+    return changed_files_fullpath

@@ -10,12 +10,14 @@ import logging
 _log = logging.getLogger()
 
 
-def backup(instance_dir, backup_file='', cmd_args=None, log_file='', mode='manual'):
+def backup(instance_dir, backup_file='', mode='manual', log_file='', cmd_args=None, settings=None, timeout=60*60*4):
     """
     Backup an FS-Online instance
 
     HINT: manual mode seems to be much faster and less cpu intensive therefore it is the default
 
+    :param timeout: (int) timeout in seconds
+    :param settings: instance settings object
     :param mode: (str) backup mode
     :param instance_dir: (str) Directory of the instance to backup
     :param backup_file: (str) Full Path and file name
@@ -35,7 +37,7 @@ def backup(instance_dir, backup_file='', cmd_args=None, log_file='', mode='manua
 
     # Get odoo settings
     _log.info("Get instance settings from %s" % instance_dir)
-    s = Settings(instance_dir, startup_args=cmd_args, log_file=log_file)
+    s = settings if settings else Settings(instance_dir, startup_args=cmd_args, log_file=log_file)
 
     # Default backup file name
     if not backup_file or backup_file is True:
@@ -51,20 +53,23 @@ def backup(instance_dir, backup_file='', cmd_args=None, log_file='', mode='manua
     backup_archive = None
 
     # Backup via http post request (= streaming by odoo)
+    # --------------------------------------------------
     if mode in ('all', 'http') and not backup_archive:
         _log.info("Try regular backup via http connection to odoo")
         try:
             backup_archive = tools_odoo.backup(s.db_name, backup_file, host=s.instance_local_url,
-                                               master_pwd=s.master_password)
+                                               master_pwd=s.master_password, timeout=timeout)
         except Exception as e:
             backup_archive = False
             _log.warning("Http streaming backup failed! %s" % repr(e))
 
     # Manual backup via file copy and pg_dump
+    # ---------------------------------------
     if mode in ('all', 'manual') and not backup_archive:
         _log.info("Try manual backup via database url and data_dir copy")
         try:
-            backup_archive = tools_odoo.backup_manual(db_url=s.db_url, data_dir=s.data_dir, backup_file=backup_file)
+            backup_archive = tools_odoo.backup_manual(db_url=s.db_url, data_dir=s.data_dir, backup_file=backup_file,
+                                                      timeout=timeout)
         except Exception as e:
             backup_archive = False
             _log.error("Manual backup failed! %s" % repr(e))
