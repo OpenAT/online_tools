@@ -59,14 +59,14 @@ log_sys_handler.setLevel(logging.DEBUG)
 _log.addHandler(log_sys_handler)
 
 
-def excepthook(*eargs):
-    # Get the root logger and log to CRITICAL
-    logging.getLogger(__name__).critical('Uncaught exception:\n'
-                                         '-------------------\n', exc_info=eargs)
-
-
-# Redirect sys assertion outputs to the logger
-sys.excepthook = excepthook
+# def excepthook(*eargs):
+#     # Get the root logger and log to CRITICAL
+#     logging.getLogger(__name__).critical('Uncaught exception:\n'
+#                                          '-------------------\n', exc_info=eargs)
+#
+#
+# # Redirect sys assertion outputs to the logger
+# sys.excepthook = excepthook
 
 
 # ------------------------------------
@@ -214,23 +214,21 @@ if __name__ == "__main__":
 
     # Change current working directory to the folder odoo_dir inside the repo online
     working_dir = pj(s.instance_core_dir, 'odoo')
+    sys.path[0] = sys.argv[0] = working_dir
     _log.info("Change working directory to 'odoo' folder of core dir %s" % working_dir)
     os.chdir(working_dir)
 
     # Change the current python script working directory to folder odoo_dir inside the repo online
     _log.info("Set python working directory (sys.path[0] and sys.argv[0]) to 'odoo' folder %s" % working_dir)
-    sys.path[0] = sys.argv[0] = working_dir
     assert working_dir == os.getcwd() == sys.path[0], (
             'Could not change working directory to %s !' % working_dir)
 
     # Overwrite the original script cmd args with the odoo-only ones
-    log_startup_args = s.startup_args[:]
-    if '-w' in log_startup_args:
-        log_startup_args[log_startup_args.index('-w')+1] = '******'
-    _log.info("Set sys.argv: %s" % ' '.join(log_startup_args))
     sys.argv = sys.argv[0:1] + s.startup_args
 
     # _log basic info
+    _log.info('sys.argv: %s' % str(sys.argv))
+    _log.info('sys.executable: %s' % str(sys.executable))
     _log.info('Production Server: %s' % s.production_server)
     _log.info('Instance: %s' % s.instance)
     _log.info('Instance core tag: %s' % s.instance_core_tag)
