@@ -4,7 +4,7 @@ from psycopg2.extensions import ISOLATION_LEVEL_AUTOCOMMIT
 from contextlib import closing
 
 import logging
-_log = logging.getLogger('fsonline')
+_log = logging.getLogger()
 
 
 def _connection_string_to_dict(db_con_string):

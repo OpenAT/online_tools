@@ -13,7 +13,7 @@ import tools_odoo
 from backup import backup
 
 import logging
-_log = logging.getLogger('fsonline')
+_log = logging.getLogger()
 
 
 def restore(instance_dir, backup_zip_file, mode='manual', log_file='', cmd_args=None, settings=None,

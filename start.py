@@ -46,9 +46,10 @@ def start(instance_dir, cmd_args=None, log_file=''):
     _log.info('START INSTANCE %s' % instance)
     _log.info('----------------------------------------')
     _log.info('pid: %s' % os.getpid())
-    _log.info('process.name: %s' % psutil.Process(os.getpid()).name())
     linux_user = pwd.getpwuid(os.getuid())
     _log.info('user: %s' % linux_user.pw_name)
+    _log.info('process.name: %s' % psutil.Process(os.getpid()).name())
+    _log.info('sys.executable: %s' % str(sys.executable))
 
     # Load configuration
     _log.info("Prepare instance settings")
@@ -71,7 +72,6 @@ def start(instance_dir, cmd_args=None, log_file=''):
             'Could not change working directory to %s !' % working_dir)
 
     # Overwrite the original script cmd args with the odoo-only ones
-    user = pwd.getpwuid(os.getuid())
     log_startup_args = s.startup_args[:]
     if '-w' in log_startup_args:
         log_startup_args[log_startup_args.index('-w')+1] = '******'
@@ -87,7 +87,6 @@ def start(instance_dir, cmd_args=None, log_file=''):
     _log.info('Instance addon_path: %s' % s.addons_path)
 
     # _log system environment information
-    _log.info("Environment current system user: %s" % user)
     _log.info("Environment $PATH: %s" % os.getcwd())
     _log.info("Environment $WORKING_DIRECTORY: %s" % os.environ.get("WORKING_DIRECTORY", ""))
     _log.info("Environment $PYTHONPATH: %s" % os.environ.get("PYTHONPATH", ""))
@@ -98,9 +97,6 @@ def start(instance_dir, cmd_args=None, log_file=''):
     _log.info("Run odoo.main() from odoo.py")
     _log.info("---")
 
-    # Reset logging module before we start odoo
-    #for handler in _log.handlers[:]:
-    #    _log.removeHandler(handler)
-
+    # ATTENTION: To make this work openerp-gevent must be in some path that python can load!
     import odoo
     odoo.main()

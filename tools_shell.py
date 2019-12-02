@@ -22,7 +22,7 @@ except:
 # compression = zipfile.ZIP_STORED
 
 import logging
-_log = logging.getLogger('fsonline')
+_log = logging.getLogger()
 
 try:
     import scandir

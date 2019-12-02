@@ -8,7 +8,7 @@ from urlparse import urljoin
 from tools_shell import shell, check_disk_space, test_zip, make_zip_archive
 
 import logging
-_log = logging.getLogger('fsonline')
+_log = logging.getLogger()
 
 # Min free space for backup location
 _min_odoo_backup_space_mb = 20000

@@ -18,7 +18,7 @@ from restore import restore
 
 
 import logging
-_log = logging.getLogger('fsonline')
+_log = logging.getLogger()
 
 
 def _update_checks(settings, parallel_updates=2):
