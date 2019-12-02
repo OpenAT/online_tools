@@ -77,8 +77,8 @@ def _prepare_update(instance_settings_obj, timeout=60*60*4):
               'addons_to_update': '',
               'addons_string': ''}
 
-    # Check and reset the instance odoo core if needed
-    # ------------------------------------------------
+    # Check/Reset the current instance odoo core
+    # --------- --------------------------------
     prepare_core(s.instance_core_dir, tag=s.instance_core_tag, git_remote_url=s.core_remote_url, user=s.linux_user,
                  production_server=s.production_server)
 
