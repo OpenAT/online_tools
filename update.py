@@ -305,8 +305,8 @@ def update(instance_dir, cmd_args=None, log_file='', parallel_updates=2):
     send_email(subject='FS-Online update for instance %s was requested at %s' % (s.instance.upper(), start))
 
     # Prepare update-end email message subjects
-    subject_success = 'FS-Online update for instance %s is DONE! ' % s.instance
-    subject_error = 'FS-Online update for instance %s has FAILED! ' % s.instance
+    subject_success = 'FS-Online update for instance %s is DONE! ' % s.instance.upper()
+    subject_error = 'FS-Online update for instance %s has FAILED! ' % s.instance.upper()
 
     # Pre update checks
     try:
