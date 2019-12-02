@@ -91,7 +91,7 @@ def fs_online():
         exit(0)
 
     # START
-    start(known_args.instance_dir, cmd_args=unknown_args, log_file=known_args.log_file)
+    return start(known_args.instance_dir, cmd_args=unknown_args, log_file=known_args.log_file)
 
 
 # ----------------------------

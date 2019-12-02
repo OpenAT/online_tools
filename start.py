@@ -104,4 +104,4 @@ def start(instance_dir, cmd_args=None, log_file=''):
 
     # ATTENTION: To make this work the file 'openerp-gevent' must be in some path that python can load!
     import odoo
-    odoo.main()
+    return odoo.main()
