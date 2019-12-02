@@ -14,7 +14,7 @@ from tools_shell import check_disk_space, disk_usage, shell, find_file
 import tools_git as git
 
 import logging
-_log = logging.getLogger()
+_log = logging.getLogger('fsonline')
 
 
 def production_server_check(instance_dir):

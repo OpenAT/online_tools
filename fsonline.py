@@ -39,7 +39,7 @@ import logging.handlers
 # Globally initialize the logging for this file
 # Get a handle to the root logger (or instantiate it the first and only time)
 # HINT: The root logger is a singleton so all calls to it will return the same object!
-_log = logging.getLogger()
+_log = logging.getLogger('fsonline')
 _log.setLevel(logging.DEBUG)
 # Create a format object to be used in log handlers
 log_formatter = logging.Formatter(fmt='%(asctime)s %(levelname)-8s %(module)-14s %(message)s',
@@ -171,7 +171,7 @@ if __name__ == "__main__":
         _log.removeHandler(log_sys_handler)
 
         # Create the file log handler
-        log_file_handler = logging.handlers.WatchedFileHandler(filename=known_args.log_file)
+        log_file_handler = logging.FileHandler(filename=known_args.log_file)
         log_file_handler.setFormatter(log_formatter)
         log_file_handler.setLevel(log_level)
 

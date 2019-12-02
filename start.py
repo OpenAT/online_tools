@@ -9,7 +9,7 @@ from tools_settings import Settings
 from tools import prepare_core
 
 import logging
-_log = logging.getLogger()
+_log = logging.getLogger('fsonline')
 
 
 # ATTENTION: This method is !!!NOT!!! used but kept here as a reference
@@ -99,9 +99,8 @@ def start(instance_dir, cmd_args=None, log_file=''):
     _log.info("---")
 
     # Reset logging module before we start odoo
-    root_logger = logging.getLogger()
-    for handler in root_logger.handlers[:]:
-        root_logger.removeHandler(handler)
+    #for handler in _log.handlers[:]:
+    #    _log.removeHandler(handler)
 
     import odoo
     odoo.main()

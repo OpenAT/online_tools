@@ -7,7 +7,7 @@ from tools_settings import Settings
 import tools_odoo
 
 import logging
-_log = logging.getLogger()
+_log = logging.getLogger('fsonline')
 
 
 def backup(instance_dir, backup_file='', mode='manual', log_file='', cmd_args=None, settings=None, timeout=60*60*4):

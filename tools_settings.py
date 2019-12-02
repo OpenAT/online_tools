@@ -9,7 +9,7 @@ import tools
 import tools_git as git
 
 import logging
-_log = logging.getLogger()
+_log = logging.getLogger('fsonline')
 
 
 def set_arg(arglist=None, key='', value=''):

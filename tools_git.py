@@ -5,7 +5,7 @@ from os.path import join as pj
 from tools_shell import shell, retry
 
 import logging
-_log = logging.getLogger()
+_log = logging.getLogger('fsonline')
 
 
 def get_sha1(path, raise_exception=True):
