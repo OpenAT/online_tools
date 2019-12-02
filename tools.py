@@ -248,7 +248,8 @@ def send_email(subject='', body='', sender='admin@datadialog.net', recipient='ad
         msg = MIMEMultipart()
         msg['From'] = sender
         msg['To'] = recipient
-        body = msg['Subject']
+        msg['Subject'] = subject
+        # attach the body
         msg.attach(MIMEText(body, 'plain'))
     except Exception as e:
         _log.warning("Could not prepare email! %s" % repr(e))
