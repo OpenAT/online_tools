@@ -67,6 +67,7 @@ def _update_checks(settings, parallel_updates=2):
 
 
 def _prepare_update(instance_settings_obj, timeout=60*60*4):
+    _log.info('Prepare the instance update!')
     # ATTENTION: Must raise an exception if anything goes wrong!
     assert instance_settings_obj, "Instance settings missing!"
     s = instance_settings_obj
@@ -79,6 +80,7 @@ def _prepare_update(instance_settings_obj, timeout=60*60*4):
 
     # Check/Reset the current instance odoo core
     # --------- --------------------------------
+    _log.info('Prepare odoo core %s for current instance %s!' % (s.instance_core_dir, s.instance))
     prepare_core(s.instance_core_dir, tag=s.instance_core_tag, git_remote_url=s.core_remote_url, user=s.linux_user,
                  production_server=s.production_server)
 
@@ -92,6 +94,7 @@ def _prepare_update(instance_settings_obj, timeout=60*60*4):
 
     # Get update_instance settings
     # ----------------------------
+    _log.info('Get update_instance settings after odoo core preparation for the update_instance!')
     s_upd = Settings(update_instance_dir, startup_args=s.startup_args, log_file=s.log_file, update_instance_mode=True)
     send_email(subject='FS-Online update started for instance %s to core %s and instance-commit %s'
                        '' % (s.instance.upper(), s_upd.core_tag, s_upd.git_commit))
