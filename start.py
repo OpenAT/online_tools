@@ -3,6 +3,7 @@ import sys
 import os
 from os.path import join as pj
 import pwd
+import psutil
 
 from tools_settings import Settings
 from tools import prepare_core
@@ -44,6 +45,10 @@ def start(instance_dir, cmd_args=None, log_file=''):
     _log.info('----------------------------------------')
     _log.info('START INSTANCE %s' % instance)
     _log.info('----------------------------------------')
+    _log.info('pid: %s' % os.getpid())
+    _log.info('process.name: %s' % psutil.Process(os.getpid()).name())
+    linux_user = pwd.getpwuid(os.getuid())
+    _log.info('user: %s' % linux_user.pw_name)
 
     # Load configuration
     _log.info("Prepare instance settings")
@@ -67,7 +72,10 @@ def start(instance_dir, cmd_args=None, log_file=''):
 
     # Overwrite the original script cmd args with the odoo-only ones
     user = pwd.getpwuid(os.getuid())
-    _log.info("Set sys.argv: %s" % ' '.join(s.startup_args))
+    log_startup_args = s.startup_args[:]
+    if '-w' in log_startup_args:
+        log_startup_args[log_startup_args.index('-w')+1] = '******'
+    _log.info("Set sys.argv: %s" % ' '.join(log_startup_args))
     sys.argv = sys.argv[0:1] + s.startup_args
 
     # _log basic info
