@@ -7,6 +7,12 @@ import time
 import pwd
 import psutil
 
+from start import start
+from backup import backup
+from restore import restore
+#from update import update
+#from tools_settings import Settings
+
 
 import logging
 #import logging.handlers
