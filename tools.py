@@ -107,7 +107,8 @@ def prepare_repository(repo_dir='', service_name='', git_remote_url='', branch='
 
 
 # TODO: user and user right for core preparation
-def prepare_core(core_dir, tag='', git_remote_url='', user='', copy_core_dir=''):
+# TODO: Do not reset the core on development machines
+def prepare_core(core_dir, tag='', git_remote_url='', user='', copy_core_dir='', production_server=True):
     _log.info("Prepare odoo core %s (tag %s)" % (core_dir, tag))
     assert core_dir, "'core_dir' missing or none"
     assert core_dir != '/', "'core_dir' can not be '/'"
@@ -167,32 +168,38 @@ def prepare_core(core_dir, tag='', git_remote_url='', user='', copy_core_dir='')
             raise e
 
     # Update existing odoo core
-    if os.path.exists(core_dir) and git.get_tag(core_dir, raise_exception=False):
+    core_tag = git.get_tag(core_dir, raise_exception=False)
+    if os.path.exists(core_dir) and core_tag:
         _log.info("Checkout tag %s from %s for odoo core %s as linux user %s"
                   "" % (tag, git_remote_url, core_dir, user))
-        try:
-            git.git_latest(core_dir, commit=tag, user=user)
-        except Exception as e:
-            os.unlink(core_lock_file)
-            _log.error('Core Checkout failed! %s' % repr(e))
-            raise e
+        if production_server:
+            try:
+                git.git_latest(core_dir, commit=tag, user=user)
+            except Exception as e:
+                os.unlink(core_lock_file)
+                _log.error('Core Checkout failed! %s' % repr(e))
+                raise e
+        else:
+            _log.warning('Skipping core checkout and reset on development server!')
 
     # Clone (create) odoo core from github
     else:
-        _log.info("Clone core from %s with tag %s to %s as user %s"
-                  "" % (git_remote_url, tag, core_dir, user))
-        try:
-            # Unlink the core_dir folder if any exits (maybe just a leftover)
-            if os.path.exists(core_dir):
-                _log.warning("Deleting faulty core_dir at %s" % core_dir)
-                assert len(core_dir.split('/')) > 4, "Stopped for safety reasons! Not enough Subfolders!"
-                shell(['rm', '-rf', core_dir], user=user, cwd=cores_base_dir)
-            # HINT: branch can also take tags and detaches the HEAD at that commit in the resulting repository
-            git.git_clone(git_remote_url, branch=tag, target_dir=core_dir, cwd=os.path.dirname(core_dir), user=user)
-        except Exception as e:
-            os.unlink(core_lock_file)
-            _log.error("Could not clone core! %s" % repr(e))
-            raise e
+        _log.info("Clone core from %s with tag %s to %s as user %s" % (git_remote_url, tag, core_dir, user))
+        if production_server or not os.path.exists(core_dir):
+            try:
+                # Unlink the core_dir folder if any exits (maybe just a leftover)
+                if os.path.exists(core_dir):
+                    _log.warning("Deleting faulty core_dir at %s" % core_dir)
+                    assert len(core_dir.split('/')) > 4, "Stopped for safety reasons! Not enough Subfolders!"
+                    shell(['rm', '-rf', core_dir], user=user, cwd=cores_base_dir)
+                # HINT: branch can also take tags and detaches the HEAD at that commit in the resulting repository
+                git.git_clone(git_remote_url, branch=tag, target_dir=core_dir, cwd=os.path.dirname(core_dir), user=user)
+            except Exception as e:
+                os.unlink(core_lock_file)
+                _log.error("Could not clone core! %s" % repr(e))
+                raise e
+        else:
+            _log.warning('Skipping core-cloning on development server!')
 
     # Core preparation successfully done
     os.unlink(core_lock_file)

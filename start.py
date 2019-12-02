@@ -5,12 +5,13 @@ from os.path import join as pj
 import pwd
 
 from tools_settings import Settings
+from tools import prepare_core
 
 import logging
 _log = logging.getLogger()
 
 
-# Not used but here as a reference
+# ATTENTION: This method is !!!NOT!!! used but kept here as a reference
 # https://stackoverflow.com/questions/12034393/import-side-effects-on-logging-how-to-reset-the-logging-module
 def reset_logging():
     manager = logging.root.manager
@@ -45,8 +46,13 @@ def start(instance_dir, cmd_args=None, log_file=''):
     _log.info('----------------------------------------')
 
     # Load configuration
-    _log.info("Prepare settings")
+    _log.info("Prepare instance settings")
     s = Settings(instance_dir, startup_args=cmd_args, log_file=log_file)
+
+    # Prepare the instance core
+    # _log.info("Prepare the odoo core %s" % s.instance_core_tag)
+    # prepare_core(s.instance_core_dir, tag=s.instance_core_tag, git_remote_url=s.core_remote_url, user=s.linux_user,
+    #              production_server=s.production_server)
 
     # Change current working directory to the folder odoo_dir inside the repo online
     working_dir = pj(s.instance_core_dir, 'odoo')
