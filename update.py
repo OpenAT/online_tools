@@ -6,6 +6,7 @@ import datetime
 import ConfigParser
 import psutil
 import sys
+import pwd
 
 from tools_settings import Settings, set_arg
 from tools_shell import find_file, shell
@@ -14,7 +15,6 @@ from tools import prepare_repository, prepare_core, inifile_to_dict, send_email,
     service_control, service_exists, service_running
 from backup import backup
 from restore import restore
-from start import start
 
 
 import logging
@@ -77,6 +77,11 @@ def _prepare_update(instance_settings_obj, timeout=60*60*4):
               'addons_to_update': '',
               'addons_string': ''}
 
+    # Check and reset the instance odoo core if needed
+    # ------------------------------------------------
+    prepare_core(s.instance_core_dir, tag=s.instance_core_tag, git_remote_url=s.core_remote_url, user=s.linux_user,
+                 production_server=s.production_server)
+
     # Prepare the update_instance repository directory
     # ------------------------------------------------
     update_instance = s.instance + "_update"
@@ -104,9 +109,9 @@ def _prepare_update(instance_settings_obj, timeout=60*60*4):
 
     # Prepare the update_instance odoo core (and therefore the core for the final update)
     # -----------------------------------------------------------------------------------
-    # TODO: Set correct user and user-rights for core preparation
     prepare_core(s_upd.instance_core_dir, tag=s_upd.instance_core_tag, git_remote_url=s_upd.core_remote_url,
-                 user=s_upd.linux_user, copy_core_dir=s.instance_core_dir)
+                 user=s_upd.linux_user, copy_core_dir=s.instance_core_dir,
+                 production_server=s.production_server)
 
     # Update the update_instance settings (since the core exists now)
     # -----------------------------------
@@ -276,11 +281,15 @@ def _update(instance_settings_obj, target_commit='', pre_update_backup='', addon
 
 
 def update(instance_dir, cmd_args=None, log_file='', parallel_updates=2):
-    logging.info('----------------------------------------')
-    logging.info('UPDATE instance')
-    logging.info('----------------------------------------')
-    logging.info('pid: %s' % os.getpid())
-    logging.info('process.name: %s' % psutil.Process(os.getpid()).name())
+    _log.info('----------------------------------------')
+    _log.info('UPDATE instance')
+    _log.info('----------------------------------------')
+    _log.info('pid: %s' % os.getpid())
+    _log.info('process.name: %s' % psutil.Process(os.getpid()).name())
+    linux_user = pwd.getpwuid(os.getuid())
+    _log.info('user: %s' % linux_user.pw_name)
+    if linux_user.pw_name != 'root':
+        _log.warning('Updates should always be run as a root user or core preparations may fail!')
     
     now = datetime.datetime.now()
     datetime_fmt = '%Y-%m-%dT%H-%M-%S'

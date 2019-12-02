@@ -3,6 +3,8 @@ import os
 from os.path import join as pj
 import time
 from time import sleep
+import pwd
+import grp
 import ConfigParser
 import smtplib
 from email.mime.multipart import MIMEMultipart
@@ -106,8 +108,27 @@ def prepare_repository(repo_dir='', service_name='', git_remote_url='', branch='
         git.git_latest(repo_dir, commit=branch, user=user)
 
 
-# TODO: user and user right for core preparation
-# TODO: Do not reset the core on development machines
+def set_core_linux_user_and_rights(core_dir, production_server=True):
+    if production_server:
+        _log.info("Check user and group for odoo core directory")
+        core_dir_user = pwd.getpwuid(os.stat(core_dir).st_uid).pw_name
+        core_dir_group = grp.getgrgid(os.stat(core_dir).st_gid).gr_name
+        _log.info("Current user and group for odoo core directory: %s:%s" % (core_dir_user, core_dir_group))
+        if core_dir_user != 'cores' or core_dir_group != 'cores':
+            _log.info('Set user and group to "cores" for odoo core at %s' % core_dir)
+            try:
+                shell(['chown', '-R', 'cores:cores', core_dir], cwd=core_dir, timeout=60*5)
+            except Exception as e:
+                _log.warning('Set user and group failed! %s' % repr(e))
+                pass
+            _log.info('Set rights for odoo core at %s' % core_dir)
+            try:
+                shell(['chmod', '-R', 'o=rX', core_dir], cwd=core_dir, timeout=60*5)
+            except Exception as e:
+                _log.warning('Set rights failed! %s' % repr(e))
+                pass
+
+
 def prepare_core(core_dir, tag='', git_remote_url='', user='', copy_core_dir='', production_server=True):
     _log.info("Prepare odoo core %s (tag %s)" % (core_dir, tag))
     assert core_dir, "'core_dir' missing or none"
@@ -137,6 +158,8 @@ def prepare_core(core_dir, tag='', git_remote_url='', user='', copy_core_dir='',
         _log.info('Check if we can skipp the core preparation')
         core_dir_tag = git.get_tag(core_dir, raise_exception=False)
         if tag == core_dir_tag and disk_usage(core_dir) > min_core_folder_size_mb:
+            # Check/Set correct linux user, group and rights even if we skipp the rest!
+            set_core_linux_user_and_rights(core_dir, production_server)
             _log.info("Skipping core preparation! Tags %s match and folder size is above %sMb"
                       "" % (tag, min_core_folder_size_mb))
             return True
@@ -144,8 +167,9 @@ def prepare_core(core_dir, tag='', git_remote_url='', user='', copy_core_dir='',
     # Check the free disk space
     _log.info("Check free disk space for core preparation")
     if not check_disk_space(os.path.dirname(core_dir), min_free_mb=10000):
-        _log.error('Not enough free disk space!')
-        raise
+        msg = 'Not enough free disk space for core preparation!'
+        _log.error(msg)
+        raise Exception(msg)
 
     # Create core update lock file in the cores base dir
     _log.info("Creating core-update-lock-file at %s!" % core_lock_file)
@@ -168,6 +192,7 @@ def prepare_core(core_dir, tag='', git_remote_url='', user='', copy_core_dir='',
             raise e
 
     # Update existing odoo core
+    # -------------------------
     core_tag = git.get_tag(core_dir, raise_exception=False)
     if os.path.exists(core_dir) and core_tag:
         _log.info("Checkout tag %s from %s for odoo core %s as linux user %s"
@@ -183,6 +208,7 @@ def prepare_core(core_dir, tag='', git_remote_url='', user='', copy_core_dir='',
             _log.warning('Skipping core checkout and reset on development server!')
 
     # Clone (create) odoo core from github
+    # ------------------------------------
     else:
         _log.info("Clone core from %s with tag %s to %s as user %s" % (git_remote_url, tag, core_dir, user))
         if production_server or not os.path.exists(core_dir):
@@ -201,7 +227,12 @@ def prepare_core(core_dir, tag='', git_remote_url='', user='', copy_core_dir='',
         else:
             _log.warning('Skipping core-cloning on development server!')
 
+    # Set correct user, group and rights
+    # ----------------------------------
+    set_core_linux_user_and_rights(core_dir, production_server)
+
     # Core preparation successfully done
+    # ----------------------------------
     os.unlink(core_lock_file)
     _log.info("Core %s was successfully prepared!" % core_dir)
     return True
