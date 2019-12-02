@@ -39,7 +39,7 @@ import logging
 # Globally initialize the logging for this file
 # Get a handle to the root logger (or instantiate it the first and only time)
 # HINT: The root logger is a singleton so all calls to it will return the same object!
-_log = logging.getLogger('fsonline')
+_log = logging.getLogger()
 _log.setLevel(logging.DEBUG)
 # Create a format object to be used in log handlers
 log_formatter = logging.Formatter(fmt='%(asctime)s %(levelname)-8s %(module)-14s %(message)s',
@@ -91,7 +91,7 @@ def fs_online():
         exit(0)
 
     # START
-    return start(known_args.instance_dir, cmd_args=unknown_args, log_file=known_args.log_file)
+    start(known_args.instance_dir, cmd_args=unknown_args, log_file=known_args.log_file)
 
 
 # ----------------------------

@@ -3,13 +3,13 @@ import sys
 import os
 from os.path import join as pj
 import pwd
-#import psutil
+import psutil
 
 from tools_settings import Settings
-from tools import prepare_core
+# from tools import prepare_core
 
 import logging
-_log = logging.getLogger('fsonline')
+_log = logging.getLogger()
 
 
 # ATTENTION: This method is !!!NOT!!! used but kept here as a reference
@@ -48,7 +48,7 @@ def start(instance_dir, cmd_args=None, log_file=''):
     _log.info('pid: %s' % os.getpid())
     linux_user = pwd.getpwuid(os.getuid())
     _log.info('user: %s' % linux_user.pw_name)
-    #_log.info('process.name: %s' % psutil.Process(os.getpid()).name())
+    _log.info('process.name: %s' % psutil.Process(os.getpid()).name())
     _log.info('sys.executable: %s' % str(sys.executable))
 
     # Load configuration
@@ -96,6 +96,11 @@ def start(instance_dir, cmd_args=None, log_file=''):
     # ATTENTION: To make this work openerp-gevent must be in some path that python can load!
     _log.info("Run odoo.main() from odoo.py")
     _log.info("---")
+
+    # Reset logging module before we start odoo
+    root_logger = logging.getLogger()
+    for handler in root_logger.handlers[:]:
+        root_logger.removeHandler(handler)
 
     # ATTENTION: To make this work the file 'openerp-gevent' must be in some path that python can load!
     import odoo
