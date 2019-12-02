@@ -34,7 +34,7 @@ from restore import restore
 from update import update
 
 import logging
-import logging.handlers
+#import logging.handlers
 
 # Globally initialize the logging for this file
 # Get a handle to the root logger (or instantiate it the first and only time)

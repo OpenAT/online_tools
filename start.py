@@ -3,7 +3,7 @@ import sys
 import os
 from os.path import join as pj
 import pwd
-import psutil
+#import psutil
 
 from tools_settings import Settings
 from tools import prepare_core
@@ -48,7 +48,7 @@ def start(instance_dir, cmd_args=None, log_file=''):
     _log.info('pid: %s' % os.getpid())
     linux_user = pwd.getpwuid(os.getuid())
     _log.info('user: %s' % linux_user.pw_name)
-    _log.info('process.name: %s' % psutil.Process(os.getpid()).name())
+    #_log.info('process.name: %s' % psutil.Process(os.getpid()).name())
     _log.info('sys.executable: %s' % str(sys.executable))
 
     # Load configuration
@@ -97,6 +97,6 @@ def start(instance_dir, cmd_args=None, log_file=''):
     _log.info("Run odoo.main() from odoo.py")
     _log.info("---")
 
-    # ATTENTION: To make this work openerp-gevent must be in some path that python can load!
+    # ATTENTION: To make this work the file 'openerp-gevent' must be in some path that python can load!
     import odoo
     odoo.main()
