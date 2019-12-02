@@ -224,7 +224,7 @@ if __name__ == "__main__":
             'Could not change working directory to %s !' % working_dir)
 
     # Overwrite the original script cmd args with the odoo-only ones
-    sys.argv = sys.argv[0:1] + s.startup_args
+    #sys.argv = sys.argv[0:1] + s.startup_args
 
     # _log basic info
     _log.info('sys.argv: %s' % str(sys.argv))
