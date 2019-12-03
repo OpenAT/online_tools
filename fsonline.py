@@ -117,9 +117,9 @@ parser.add_argument('--verbose', help='Log Level',
 
 # Additional modes for this script
 parser.add_argument('--backup',
-                    nargs='?',      # ? means 0-or-1 arguments
-                    const='',       # sets the default when there are 0 arguments
-                    type=str,       # converts the argument to string
+                    nargs='?',          # ? means 0-or-1 arguments
+                    const='default',    # sets this default when there are 0 arguments
+                    type=str,           # converts the argument to string
                     help='Create a backup at the given file name! Will backup to default location '
                          '/[instance_dir]/update/[backupname.zip] if no backupfile is given!')
 
@@ -129,7 +129,7 @@ parser.add_argument('--restore',
 
 parser.add_argument('--update',
                     nargs='?',      # ? means 0-or-1 arguments
-                    const='o8',     # sets the default when there are 0 arguments
+                    const='o8',     # sets this default when there are 0 arguments
                     type=str,       # converts the argument to string
                     help='Update to branch or commit of the instance repository in github! Defaults to: "o8"')
 

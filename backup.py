@@ -40,7 +40,7 @@ def backup(instance_dir, backup_file='', mode='manual', log_file='', cmd_args=No
     s = settings if settings else Settings(instance_dir, startup_args=cmd_args, log_file=log_file)
 
     # Default backup file name
-    if not backup_file or backup_file is True:
+    if not backup_file or backup_file == 'default':
         core_id = s.core_tag or s.core_commit
         start_str = datetime.datetime.utcnow().strftime('%Y-%m-%dT%H-%M-%S')
         assert core_id, "No commit tag or commit id found for odoo core at %s" % s.instance_core_dir
