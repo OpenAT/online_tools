@@ -133,8 +133,10 @@ def git_clone(repo_remote_url, branch='o8', target_dir='', cwd='', user=None, ti
 
 
 @retry(Exception, tries=3)
-def git_checkout(path, commit='o8', user=None, timeout=60*90):
+def git_checkout(path, commit='o8', user=None, timeout=60*90, pull=False):
     _log.info("Git: Checkout commit or branch %s for git repository in %s." % (commit, path))
+    if not pull:
+        _log.warning('Checkout is called without pull=True! This will NOT merge latest changes from remote!')
     assert os.path.exists(path), 'Path not found: %s' % path
 
     try:
@@ -147,11 +149,25 @@ def git_checkout(path, commit='o8', user=None, timeout=60*90):
         raise e
 
     try:
+        _log.info('Checkout commit/branch/tag %s' % commit)
         shell(['git', 'checkout', commit], cwd=path, timeout=timeout, user=user)
-        git_submodule(path, user=user)
-
     except Exception as e:
-        _log.error('CRITICAL: Git checkout failed! %s' % repr(e))
+        _log.error('Git checkout failed! %s' % repr(e))
+        raise e
+
+    if pull:
+        try:
+            _log.info('Pull (merge) latest changes from remote!')
+            shell(['git', 'pull'], cwd=path, timeout=timeout, user=user)
+        except Exception as e:
+            _log.error('Git pull failed! %s' % repr(e))
+            raise e
+
+    try:
+        _log.info('Update submodules after checkout%s!' % ' and pull' if pull else '')
+        git_submodule(path, user=user)
+    except Exception as e:
+        _log.error('Update submodules failed! %s' % repr(e))
         raise e
 
     return True
@@ -200,7 +216,7 @@ def git_reset(path, user=None):
 
 
 @retry(Exception, tries=3)
-def git_latest(path, commit='o8', user=None, pull=False):
+def git_latest(path, commit='o8', user=None):
     _log.info("Git: Update repo %s to commit or branch %s" % (path, commit))
     assert os.path.exists(path), 'Path not found: %s' % path
 
@@ -208,24 +224,17 @@ def git_latest(path, commit='o8', user=None, pull=False):
     _timeout = 60*5
 
     # Reset the repository
-    _log.info('Cleanup and reset the repository at %s' % path)
+    _log.info('Update, clean and reset the repository at %s' % path)
     git_reset(path, user=user)
 
     # Checkout the branch/commit
+    # HINT: pull=True makes sure the latest remote is merged! (therefore this is called git_latest!)
     _log.info("Checkout commit or branch %s for repository %s" % (commit, path))
     try:
-        git_checkout(path, commit=commit, user=user)
+        git_checkout(path, commit=commit, user=user, pull=True)
     except Exception as e:
         _log.error('Git checkout failed! %s' % repr(e))
         raise e
-
-    # Do an extra pull (should not be necessary?!?)
-    if pull:
-        try:
-            shell(['git', 'pull'], cwd=path, timeout=_timeout, user=user)
-        except Exception as e:
-            _log.error('Git pull failed! %s' % repr(e))
-            raise e
 
     return True
 

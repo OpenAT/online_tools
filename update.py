@@ -10,7 +10,7 @@ import pwd
 
 from tools_settings import Settings, set_arg
 from tools_shell import find_file, shell
-from tools_git import git_latest, get_sha1
+from tools_git import git_latest, get_sha1, git_checkout, git_reset
 from tools import prepare_repository, prepare_core, inifile_to_dict, send_email, find_addons_to_update, \
     service_control, service_exists, service_running
 import backup
@@ -66,9 +66,10 @@ def _update_checks(settings, parallel_updates=2):
     return True
 
 
-def _prepare_update(instance_settings_obj, timeout=60*60*4):
+def _prepare_update(instance_settings_obj, timeout=60*60*4, update_branch='o8'):
     _log.info('Prepare the instance update!')
-    # ATTENTION: Must raise an exception if anything goes wrong!
+    # ATTENTION: !!! MUST RAISE AN EXCEPTION IF ANYTHING GOES WRONG !!!
+
     assert instance_settings_obj, "Instance settings missing!"
     s = instance_settings_obj
 
@@ -88,9 +89,10 @@ def _prepare_update(instance_settings_obj, timeout=60*60*4):
     # ------------------------------------------------
     update_instance = s.instance + "_update"
     update_instance_dir = pj(s.instance_dir, 'update', update_instance)
-    _log.info("Prepare the update_instance repository at directory: %s" % update_instance_dir)
+    _log.info("Prepare the update_instance repository for branch %s at directory: %s"
+              "" % (update_branch, update_instance_dir))
     prepare_repository(repo_dir=update_instance_dir, service_name=update_instance,
-                       git_remote_url=s.git_remote_url, branch=s.git_branch, user=s.linux_user)
+                       git_remote_url=s.git_remote_url, branch=update_branch, user=s.linux_user)
 
     # Get update_instance settings
     # ----------------------------
@@ -112,9 +114,14 @@ def _prepare_update(instance_settings_obj, timeout=60*60*4):
 
     # Prepare the update_instance odoo core (and therefore the core for the final update)
     # -----------------------------------------------------------------------------------
-    prepare_core(s_upd.instance_core_dir, tag=s_upd.instance_core_tag, git_remote_url=s_upd.core_remote_url,
-                 user=s_upd.linux_user, copy_core_dir=s.instance_core_dir,
-                 production_server=s.production_server)
+    if s.instance_core_dir != s_upd.instance_core_dir:
+        prepare_core(s_upd.instance_core_dir, tag=s_upd.instance_core_tag, git_remote_url=s_upd.core_remote_url,
+                     user=s_upd.linux_user,
+                     copy_core_dir=s.instance_core_dir,
+                     production_server=s.production_server)
+    else:
+        assert s.core_tag == s_upd.core_tag, "Same core dir but different tags %s %s?!?" % (s.core_tag, s_upd.core_tag)
+        _log.info('Core "%s" did not change! Skipping core update!' % s.core_tag)
 
     # Update the update_instance settings (since the core exists now)
     # -----------------------------------
@@ -147,9 +154,9 @@ def _prepare_update(instance_settings_obj, timeout=60*60*4):
     _log.info('Pre-update-backup was created at %s' % pre_update_backup)
     _log.info('Restoring pre-update-backup "%s" for the update_instance %s' % (pre_update_backup, s_upd.instance))
     assert restore.restore(s_upd.instance_dir, pre_update_backup,
-                   log_file=s_upd.log_file, settings=s_upd,
-                   backup_before_drop=False, start_after_restore=False
-                   ), "Restore of pre-update backup %s failed!" % pre_update_backup
+                           log_file=s_upd.log_file, settings=s_upd,
+                           backup_before_drop=False, start_after_restore=False
+                           ), "Restore of pre-update backup %s failed!" % pre_update_backup
     _log.info('Pre-update-backup %s was restored for update_instance %s and db %s'
               '' % (pre_update_backup, s_upd.instance, s_upd.db_name))
 
@@ -175,7 +182,7 @@ def _prepare_update(instance_settings_obj, timeout=60*60*4):
         _log.info('Dry-Run-Update log/result:\n\n---\n%s\n---\n' % str(res))
 
     # return addons_to_update
-    _log.info('Dry-Run-Update was successfully!')
+    _log.info('Dry-Run-Update was successful!')
     return result
 
 
@@ -204,8 +211,13 @@ def _update(instance_settings_obj, target_commit='', pre_update_backup='', addon
 
     # Checkout the update-target-commit
     # ---------------------------------
+    _log.info("Checkout commit '%s' for production instance '%s'" % (target_commit, s.instance_dir))
     try:
-        git_latest(s.instance_dir, commit=target_commit, user=s.linux_user)
+        # HINT: Since this is a commit git_checkout called from git_latest would fail if it tries to pull something
+        #       from the remote. Therefore it was replaced with git_reset and git_checkout
+        # git_latest(s.instance_dir, commit=target_commit, user=s.linux_user)
+        git_reset(s.instance_dir, user=s.linux_user)
+        git_checkout(s.instance_dir, commit=target_commit, user=s.linux_user, pull=False)
         assert get_sha1(s.instance_dir, raise_exception=False) == target_commit, \
             "Instance-directory-sha1 does not match update-target-commit-sha1 after checkout!"
 
@@ -217,7 +229,8 @@ def _update(instance_settings_obj, target_commit='', pre_update_backup='', addon
         if get_sha1(s.instance_dir, raise_exception=False) != s.git_commit:
             _log.info('Try to restore pre-update instance commit %s' % s.git_commit)
             try:
-                git_latest(s.instance_dir, commit=s.git_commit, user=s.linux_user)
+                # git_latest(s.instance_dir, commit=s.git_commit, user=s.linux_user)
+                git_checkout(s.instance_dir, commit=s.git_commit, user=s.linux_user, pull=False)
                 assert get_sha1(s.instance_dir, raise_exception=False) == s.git_commit, \
                     "Instance-commit does not match pre-update commit after restore attempt!"
             except Exception as e2:
@@ -269,7 +282,8 @@ def _update(instance_settings_obj, target_commit='', pre_update_backup='', addon
         # Restore commit and pre-update-backup
         try:
             _log.warning("Try to restore pre-update-commit and backup after failed update!")
-            git_latest(s.instance_dir, commit=s.git_commit, user=s.linux_user)
+            # git_latest(s.instance_dir, commit=s.git_commit, user=s.linux_user)
+            git_checkout(s.instance_dir, commit=s.git_commit, user=s.linux_user, pull=False)
             assert get_sha1(s.instance_dir, raise_exception=False) == s.git_commit, \
                 "Instance-commit does not match pre-update commit after restore attempt!"
             restore.restore(s.instance_dir, pre_update_backup, log_file=log_file, start_after_restore=True)
@@ -283,7 +297,7 @@ def _update(instance_settings_obj, target_commit='', pre_update_backup='', addon
     return True
 
 
-def update(instance_dir, cmd_args=None, log_file='', parallel_updates=2):
+def update(instance_dir, update_branch='o8', cmd_args=None, log_file='', parallel_updates=2):
     _log.info('----------------------------------------')
     _log.info('UPDATE instance')
     _log.info('----------------------------------------')
@@ -301,7 +315,7 @@ def update(instance_dir, cmd_args=None, log_file='', parallel_updates=2):
     # Get instance settings
     s = Settings(instance_dir, startup_args=cmd_args, log_file=log_file)
 
-    # Send update-start email
+    # Send update requested email
     send_email(subject='FS-Online update for instance %s was requested at %s' % (s.instance.upper(), start))
 
     # Prepare update-end email message subjects
@@ -309,6 +323,7 @@ def update(instance_dir, cmd_args=None, log_file='', parallel_updates=2):
     subject_error = 'FS-Online update for instance %s has FAILED! ' % s.instance.upper()
 
     # Pre update checks
+    # -----------------
     try:
         _update_checks(s, parallel_updates=parallel_updates)
     except Exception as e:
@@ -328,8 +343,9 @@ def update(instance_dir, cmd_args=None, log_file='', parallel_updates=2):
         update_lock.write(update_lock_file)
 
     # Prepare the update
+    # ------------------
     try:
-        prepare_upd = _prepare_update(instance_settings_obj=s)
+        prepare_upd = _prepare_update(instance_settings_obj=s, update_branch=update_branch)
 
         # Check the result
         assert prepare_upd['updated_to_commit'], "'updated_to_commit' is missing in answer from _prepare_update()!"
@@ -348,6 +364,7 @@ def update(instance_dir, cmd_args=None, log_file='', parallel_updates=2):
         return False
 
     # Update the production instance
+    # ------------------------------
     try:
         update_done = _update(instance_settings_obj=s,
                               target_commit=prepare_upd['updated_to_commit'],
@@ -362,8 +379,7 @@ def update(instance_dir, cmd_args=None, log_file='', parallel_updates=2):
         send_email(subject=subject_error+' WITH UNEXPECTED EXCEPTION!!!', body=msg)
         send_email(subject=subject_error + ' WITH UNEXPECTED EXCEPTION!!!', body=msg,
                    recipient='michael.karrer@datadialog.net')
-        # Cleanup and return
-        os.unlink(s.update_lock_file)
+        # DO NOT CLEAN THE UPDATE LOCK FILE !!! TO PREVENT FURTHER UPDATES!!!
         return False
 
     # Update done

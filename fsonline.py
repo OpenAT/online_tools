@@ -72,8 +72,9 @@ sys.excepthook = excepthook
 def fs_online():
     # BACKUP
     if known_args.backup:
-        result = backup.backup(known_args.instance_dir, backup_file=known_args.backup,
-                        cmd_args=unknown_args, log_file=known_args.log_file)
+        result = backup.backup(known_args.instance_dir,
+                               backup_file=known_args.backup,
+                               cmd_args=unknown_args, log_file=known_args.log_file)
         if result:
             exit(0)
         else:
@@ -81,13 +82,16 @@ def fs_online():
 
     # RESTORE
     if known_args.restore:
-        restore.restore(known_args.instance_dir, backup_zip_file=known_args.restore,
-                cmd_args=unknown_args, log_file=known_args.log_file)
+        restore.restore(known_args.instance_dir,
+                        backup_zip_file=known_args.restore,
+                        cmd_args=unknown_args, log_file=known_args.log_file)
         exit(0)
 
     # UPDATE
     if known_args.update:
-        update.update(known_args.instance_dir, cmd_args=unknown_args, log_file=known_args.log_file)
+        update.update(known_args.instance_dir,
+                      update_branch=known_args.update,
+                      cmd_args=unknown_args, log_file=known_args.log_file)
         exit(0)
 
     # START
@@ -113,9 +117,9 @@ parser.add_argument('--verbose', help='Log Level',
 
 # Additional modes for this script
 parser.add_argument('--backup',
-                    action='store_true',
-                    #default='',
-                    #metavar='EMTPY or /path/to/backup.zip',
+                    nargs='?',      # ? means 0-or-1 arguments
+                    const='',       # sets the default when there are 0 arguments
+                    type=str,       # converts the argument to string
                     help='Create a backup at the given file name! Will backup to default location '
                          '/[instance_dir]/update/[backupname.zip] if no backupfile is given!')
 
@@ -124,10 +128,10 @@ parser.add_argument('--restore',
                     help='Restore from backup zip or from folder')
 
 parser.add_argument('--update',
-                    action='store_true',
-                    #default='',
-                    #metavar='EMPTY for latest commit OR Branch, Tag or SHA1 e.g.: --update=o8r168',
-                    help='Update the instance to latest commit of the instance repository on github.')
+                    nargs='?',      # ? means 0-or-1 arguments
+                    const='o8',     # sets the default when there are 0 arguments
+                    type=str,       # converts the argument to string
+                    help='Update to branch or commit of the instance repository in github! Defaults to: "o8"')
 
 # Set a default function to be called after the initialization of the parser object
 parser.set_defaults(func=fs_online)
@@ -182,6 +186,8 @@ if __name__ == "__main__":
     _log.info('================================================================================')
     _log.info('fs-online.py %s' % ' '.join(sys.argv))
     _log.info('================================================================================')
+    _log.info('known_args: %s' % known_args)
+    _log.info('unknown_args: %s' % str(unknown_args))
 
     # START fs_online()
     # -----------------
