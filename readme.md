@@ -44,6 +44,8 @@ Restore to specific file with logging to file:
 - The update instance folder is now also called like the update database e.g.: dadi_update instead of just like the instance (dadi)! 
   Therefore: 'instance name' = 'database name' = 'service name' = 'instance folder name'! 
   The only exception is the linux and database user of the update_instance which is the user of the instance e.g.: dadi to avoid too many linux and postgres users.
+- Two E-Mails are send to indicate the update start! One when the update is requested and one when the update really starts after successful pre-update-checks!
+  But be aware that they may not come to the e-mail inbox in the expected order because of how the mail delivery works!
 
 # Using python methods on the command line
 Full git reset inlcuding submodules:
