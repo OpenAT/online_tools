@@ -8,10 +8,11 @@ import pwd
 import psutil
 
 from start import start
+# TODO: !!!! IMPORT OF BACKUP LEADS TO AN SEGMENTATION FAULT !!!!
 from backup import backup
 from restore import restore
-#from update import update
-#from tools_settings import Settings
+from update import update
+from tools_settings import Settings
 
 
 import logging

@@ -69,8 +69,8 @@ def restore(instance_dir, backup_zip_file, mode='manual', log_file='', cmd_args=
     if mode in ('all', 'http') and not restore_done:
         _log.info("Restore backup by odoo via http")
         try:
-            restore_done = tools_odoo.restore(s.db_name, backup_zip_file, host=s.instance_local_url,
-                                              master_pwd=s.master_password)
+            restore_done = tools_odoo.odoo_restore(s.db_name, backup_zip_file, host=s.instance_local_url,
+                                                   master_pwd=s.master_password)
         except Exception as e:
             _log.warning('Restore by odoo via http failed! %s' % repr(e))
             restore_done = False

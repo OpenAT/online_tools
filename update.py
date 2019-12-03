@@ -13,8 +13,8 @@ from tools_shell import find_file, shell
 from tools_git import git_latest, get_sha1
 from tools import prepare_repository, prepare_core, inifile_to_dict, send_email, find_addons_to_update, \
     service_control, service_exists, service_running
-from backup import backup
-from restore import restore
+import backup
+import restore
 
 
 import logging
@@ -138,7 +138,7 @@ def _prepare_update(instance_settings_obj, timeout=60*60*4):
     # -----------------------------------------------------------------
     # Backup
     _log.info('Creating pre-update-backup')
-    pre_update_backup = backup(s.instance_dir, log_file=s_upd.log_file, settings=s)
+    pre_update_backup = backup.backup(s.instance_dir, log_file=s_upd.log_file, settings=s)
 
     # Append pre_update_backup file to the result
     result['pre_update_backup'] = pre_update_backup
@@ -146,7 +146,7 @@ def _prepare_update(instance_settings_obj, timeout=60*60*4):
     # Restore
     _log.info('Pre-update-backup was created at %s' % pre_update_backup)
     _log.info('Restoring pre-update-backup "%s" for the update_instance %s' % (pre_update_backup, s_upd.instance))
-    assert restore(s_upd.instance_dir, pre_update_backup,
+    assert restore.restore(s_upd.instance_dir, pre_update_backup,
                    log_file=s_upd.log_file, settings=s_upd,
                    backup_before_drop=False, start_after_restore=False
                    ), "Restore of pre-update backup %s failed!" % pre_update_backup
@@ -272,7 +272,7 @@ def _update(instance_settings_obj, target_commit='', pre_update_backup='', addon
             git_latest(s.instance_dir, commit=s.git_commit, user=s.linux_user)
             assert get_sha1(s.instance_dir, raise_exception=False) == s.git_commit, \
                 "Instance-commit does not match pre-update commit after restore attempt!"
-            restore(s.instance_dir, pre_update_backup, log_file=log_file, start_after_restore=True)
+            restore.restore(s.instance_dir, pre_update_backup, log_file=log_file, start_after_restore=True)
             assert service_running(s.linux_instance_service)
         except Exception as e2:
             _log.critical("Restoring the instance to pre-update-backup failed! %s" % repr(e))

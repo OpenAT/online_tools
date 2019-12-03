@@ -57,8 +57,8 @@ def backup(instance_dir, backup_file='', mode='manual', log_file='', cmd_args=No
     if mode in ('all', 'http') and not backup_archive:
         _log.info("Try regular backup via http connection to odoo")
         try:
-            backup_archive = tools_odoo.backup(s.db_name, backup_file, host=s.instance_local_url,
-                                               master_pwd=s.master_password, timeout=timeout)
+            backup_archive = tools_odoo.odoo_backup(s.db_name, backup_file, host=s.instance_local_url,
+                                                    master_pwd=s.master_password, timeout=timeout)
         except Exception as e:
             backup_archive = False
             _log.warning("Http streaming backup failed! %s" % repr(e))
@@ -68,8 +68,8 @@ def backup(instance_dir, backup_file='', mode='manual', log_file='', cmd_args=No
     if mode in ('all', 'manual') and not backup_archive:
         _log.info("Try manual backup via database url and data_dir copy")
         try:
-            backup_archive = tools_odoo.backup_manual(db_url=s.db_url, data_dir=s.data_dir, backup_file=backup_file,
-                                                      timeout=timeout)
+            backup_archive = tools_odoo.odoo_backup_manual(db_url=s.db_url, data_dir=s.data_dir, backup_file=backup_file,
+                                                           timeout=timeout)
         except Exception as e:
             backup_archive = False
             _log.error("Manual backup failed! %s" % repr(e))

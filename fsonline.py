@@ -19,8 +19,6 @@ Conventions:
   - online_tools repo is at the same level as the instances e.g.:
     /opt/instances/online_tools
   - status.ini was removed - all relevant info is logged to the update log file
-  - if an update or restore fails a file called update_restore_failed is created -
-    no further updates or restore will run by this script as long as this file exits except --force is set
 """
 import argparse
 import os
@@ -28,14 +26,12 @@ from os.path import join as pj
 import sys
 import time
 
-from start import start
-from backup import backup
-from restore import restore
-from update import update
+import start
+import backup
+import restore
+import update
 
 import logging
-#import logging.handlers
-
 # Globally initialize the logging for this file
 # Get a handle to the root logger (or instantiate it the first and only time)
 # HINT: The root logger is a singleton so all calls to it will return the same object!
@@ -44,13 +40,10 @@ _log.setLevel(logging.DEBUG)
 # Create a format object to be used in log handlers
 log_formatter = logging.Formatter(fmt='%(asctime)s %(levelname)-8s %(module)-14s %(message)s',
                                   datefmt='%Y-%m-%d %H:%M:%S')
-# Log in GMT time (instead of localtime)
+# Log in GMT time (instead of localtime) to have the same time than odoo logging
 log_formatter.converter = time.gmtime
-# Start a log handler and add it to the logger
 log_sys_handler = logging.StreamHandler(sys.stdout)
-# Configure the log format for the new handler
 log_sys_handler.setFormatter(log_formatter)
-# Set log handler output level
 log_sys_handler.setLevel(logging.DEBUG)
 # Add the handler to the root logger
 _log.addHandler(log_sys_handler)
@@ -72,7 +65,7 @@ sys.excepthook = excepthook
 def fs_online():
     # BACKUP
     if known_args.backup:
-        result = backup(known_args.instance_dir, backup_file=known_args.backup,
+        result = backup.backup(known_args.instance_dir, backup_file=known_args.backup,
                         cmd_args=unknown_args, log_file=known_args.log_file)
         if result:
             exit(0)
@@ -81,17 +74,17 @@ def fs_online():
 
     # RESTORE
     if known_args.restore:
-        restore(known_args.instance_dir, backup_zip_file=known_args.restore,
+        restore.restore(known_args.instance_dir, backup_zip_file=known_args.restore,
                 cmd_args=unknown_args, log_file=known_args.log_file)
         exit(0)
 
     # UPDATE
     if known_args.update:
-        update(known_args.instance_dir, cmd_args=unknown_args, log_file=known_args.log_file)
+        update.update(known_args.instance_dir, cmd_args=unknown_args, log_file=known_args.log_file)
         exit(0)
 
     # START
-    return start(known_args.instance_dir, cmd_args=unknown_args, log_file=known_args.log_file)
+    return start.start(known_args.instance_dir, cmd_args=unknown_args, log_file=known_args.log_file)
 
 
 # ----------------------------

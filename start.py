@@ -12,7 +12,7 @@ import logging
 _log = logging.getLogger()
 
 
-# ATTENTION: This method is !!!NOT!!! used but kept here as a reference
+# ATTENTION: This method is !!!NOT!!! used anywherere but kept here as a reference
 # https://stackoverflow.com/questions/12034393/import-side-effects-on-logging-how-to-reset-the-logging-module
 def reset_logging():
     manager = logging.root.manager
@@ -62,11 +62,11 @@ def start(instance_dir, cmd_args=None, log_file=''):
 
     # Change current working directory to the folder odoo_dir inside the repo online
     working_dir = pj(s.instance_core_dir, 'odoo')
-    _log.info("Change working directory to 'odoo' folder of core dir %s" % working_dir)
+    _log.info("Change working directory to 'odoo' folder of core dir: %s" % working_dir)
     os.chdir(working_dir)
 
     # Change the current python script working directory to folder odoo_dir inside the repo online
-    _log.info("Set python working directory (sys.path[0] and sys.argv[0]) to 'odoo' folder %s" % working_dir)
+    _log.info("Set python working directory (sys.path[0] and sys.argv[0]) to 'odoo' folder: %s" % working_dir)
     sys.path[0] = sys.argv[0] = working_dir
     assert working_dir == os.getcwd() == sys.path[0], (
             'Could not change working directory to %s !' % working_dir)
@@ -75,7 +75,7 @@ def start(instance_dir, cmd_args=None, log_file=''):
     log_startup_args = s.startup_args[:]
     if '-w' in log_startup_args:
         log_startup_args[log_startup_args.index('-w')+1] = '******'
-    _log.info("Set sys.argv: %s" % ' '.join(log_startup_args))
+    _log.info("Set sys.argv: %s" % ' '.join(sys.argv[0:1]+log_startup_args))
     sys.argv = sys.argv[0:1] + s.startup_args
 
     # _log basic info

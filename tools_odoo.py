@@ -37,7 +37,7 @@ _min_odoo_backup_space_mb = 20000
 #     odoo = ServerProxy('http://'+xmlrpc_interface+'/xmlrpc/db')
 
 
-def backup(database, backup_file, host='http://127.0.0.1:8069', master_pwd='admin', timeout=60*60*4):
+def odoo_backup(database, backup_file, host='http://127.0.0.1:8069', master_pwd='admin', timeout=60 * 60 * 4):
     # TODO: Honour timeout
     backup_file = os.path.abspath(backup_file)
     _log.info("Start Odoo backup of database %s at host %s to %s" % (database, host, backup_file))
@@ -73,7 +73,7 @@ def backup(database, backup_file, host='http://127.0.0.1:8069', master_pwd='admi
     return backup_file
 
 
-def backup_manual(db_url='', data_dir='', backup_file='', timeout=60*60*4):
+def odoo_backup_manual(db_url='', data_dir='', backup_file='', timeout=60 * 60 * 4):
     database = db_url.rsplit('/', 1)[1]
     assert database, "Database name not found in db_url!"
 
@@ -138,7 +138,7 @@ def backup_manual(db_url='', data_dir='', backup_file='', timeout=60*60*4):
     return backup_file
 
 
-def restore(database, backup_zip_file, host='http://127.0.0.1:8069', master_pwd='admin'):
+def odoo_restore(database, backup_zip_file, host='http://127.0.0.1:8069', master_pwd='admin'):
     backup_zip_file = os.path.abspath(backup_zip_file)
     _log.info("Restore by odoo via http from file %s" % backup_zip_file)
     assert os.path.isfile(backup_zip_file), "Backup zip file not found at %s" % backup_zip_file
