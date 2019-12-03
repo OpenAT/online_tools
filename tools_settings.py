@@ -48,7 +48,8 @@ def set_arg(arglist=None, key='', value=''):
 
 class Settings:
     def __init__(self, instance_dir, startup_args=None, log_file='', update_instance_mode=False):
-        _log.info('Get settings for %sinstance at %s' % ('update_' if update_instance_mode else '', instance_dir))
+        _log.info('Get settings for %sinstance with startup_args "%s" from "%s"'
+                  '' % ('update_' if update_instance_mode else '', str(startup_args), instance_dir))
 
         self.odoo_manifest = '__openerp__.py'
 
@@ -66,6 +67,9 @@ class Settings:
 
         # Startup arguments
         # -----------------
+        # Initial startup arguments
+        self.original_startup_args = startup_args[:]
+        # Computed startup arguments
         self.startup_args = startup_args[:]
 
         # To make it easier block some "long" optionsn and convert the arguments to a more accessible list
@@ -426,4 +430,5 @@ class Settings:
             self.update_lock_file_name = 'update.lock'
             self.update_lock_file = pj(instance_dir, self.update_lock_file_name)
 
+        _log.info("Instance '%s' computed startup arguments: %s" % self.startup_args)
         _log.debug("Instance Settings:\n%s" % pformat(self.__dict__))

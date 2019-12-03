@@ -97,7 +97,8 @@ def _prepare_update(instance_settings_obj, timeout=60*60*4, update_branch='o8'):
     # Get update_instance settings
     # ----------------------------
     _log.info('Get update_instance settings after odoo core preparation for the update_instance!')
-    s_upd = Settings(update_instance_dir, startup_args=s.startup_args, log_file=s.log_file, update_instance_mode=True)
+    s_upd = Settings(update_instance_dir, startup_args=s.original_startup_args, log_file=s.log_file,
+                     update_instance_mode=True)
     send_email(subject='FS-Online update started for instance %s to core %s and instance-commit %s'
                        '' % (s.instance.upper(), s_upd.core_tag, s_upd.git_commit))
     assert s.instance != s_upd.instance, "Instance '%s' and update_instance '%s' can not be the same!" % (
@@ -125,7 +126,8 @@ def _prepare_update(instance_settings_obj, timeout=60*60*4, update_branch='o8'):
 
     # Update the update_instance settings (since the core exists now)
     # -----------------------------------
-    s_upd = Settings(update_instance_dir, startup_args=s.startup_args, log_file=s.log_file, update_instance_mode=True)
+    s_upd = Settings(update_instance_dir, startup_args=s.original_startup_args, log_file=s.log_file,
+                     update_instance_mode=True)
 
     # Search for addons-to-update
     # ---------------------------
