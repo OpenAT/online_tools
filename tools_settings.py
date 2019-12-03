@@ -121,7 +121,7 @@ class Settings:
             # core_commit
             self.core_commit = git.get_sha1(self.instance_core_dir)
 
-            # core_tag
+            # core_tagcomputed startup arguments
             try:
                 self.core_tag = git.get_tag(self.instance_core_dir)
             except Exception as e:
@@ -430,5 +430,5 @@ class Settings:
             self.update_lock_file_name = 'update.lock'
             self.update_lock_file = pj(instance_dir, self.update_lock_file_name)
 
-        _log.info("Instance '%s' computed startup arguments: %s" % self.startup_args)
+        _log.info("Instance '%s' computed startup arguments: %s" % (self.instance, self.startup_args))
         _log.debug("Instance Settings:\n%s" % pformat(self.__dict__))

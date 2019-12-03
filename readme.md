@@ -1,7 +1,7 @@
 # Usage of fsonline.py
 Start an instance: 
 
-```fsonline.py [instance-folder] --log_file=```
+```fsonline.py [instance-folder]```
 
 Start an instance with log file: 
 
