@@ -61,7 +61,7 @@ def start(instance_dir, cmd_args=None, log_file=''):
     _log.info("Environment $WORKING_DIRECTORY: %s" % os.environ.get("WORKING_DIRECTORY", ""))
     _log.info("Environment $PYTHONPATH: %s" % os.environ.get("PYTHONPATH", ""))
     _log.info("Environment $REQUESTS_CA_BUNDLE: %s" % os.environ.get("REQUESTS_CA_BUNDLE", ""))
-    _log.info('Environment "python -m requests.certs" >>> %s' % shell(['python', '-m', 'requests.certs'], log=False))
+    _log.info('Environment "python -m requests.certs" >>> %s' % shell(['python', '-m', 'requests.certs']))
 
     # Run odoo
     # HINT: 'import odoo' works because we are now in the FS-Online core directory that contains the folder odoo

@@ -87,7 +87,8 @@ def _switch_user_function(user_uid, user_gid):
 
 # Linux-Shell wrapper
 def shell(cmd=list(), user=None, cwd=None, env=None, preexec_fn=None, log=True, **kwargs):
-    _log.debug("Run shell command: %s" % cmd if log else '**********')
+    if log:
+        _log.debug("Run shell command: %s" % cmd)
     assert isinstance(cmd, (list, tuple)), 'shell(cmd): cmd must be of type list or tuple!'
 
     # Working directory
