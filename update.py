@@ -261,7 +261,7 @@ def _update(instance_settings_obj, target_commit='', pre_update_backup='', addon
 
     # Run the addons update
     # ---------------------
-    _log.info("Run the odoo addons update!")
+    _log.info("Run the production instance odoo (addons) update!")
     python_exec = str(sys.executable)
 
     odoo_server = pj(s.instance_core_dir, 'odoo/openerp-server')

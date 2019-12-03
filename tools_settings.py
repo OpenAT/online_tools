@@ -189,9 +189,15 @@ class Settings:
         self.log_file = log_file
 
         # odoo logfile
-        self.logfile = (sargs[sargs.index('--logfile')+1] if '--logfile' in sargs else self.server_conf.get('logfile'))
-        if not self.logfile and self.log_file:
+        if '--logfile' in sargs:
+            self.logfile = sargs[sargs.index('--logfile')+1]
+            _log.info('Get odoo-logfile from startup arguments: %s' % self.logfile)
+        elif 'logfile' in self.server_conf:
+            self.logfile = self.server_conf['logfile']
+            _log.info('Get odoo-logfile from server.conf: %s' % self.logfile)
+        else:
             self.logfile = self.log_file
+            _log.info('Get odoo-logfile from fsonline.py cmd-option --log_file: %s' % self.logfile)
         # startup args
         if self.logfile:
             self.startup_args = set_arg(self.startup_args, '--logfile', self.logfile)
