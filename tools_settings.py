@@ -151,9 +151,16 @@ class Settings:
 
         # Linux information
         # -----------------
-        # ATTENTION: We use the current linux user if we are not in an production environment!
-        current_linux_user = pwd.getpwuid(os.getuid())
-        self.linux_user = self.instance if self.production_server else current_linux_user.pw_name
+        # linux_user
+        self.linux_user = self.instance
+        # update mode
+        if update_instance_mode:
+            self.linux_user = self.instance.rsplit('_update')[0]
+        # Development machine
+        if not self.production_server:
+            self.linux_user = pwd.getpwuid(os.getuid()).pw_name
+
+        # linux_instance_service
         self.linux_instance_service = self.instance
 
         # odoo server configuration file
