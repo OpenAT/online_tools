@@ -102,6 +102,7 @@ def start(instance_dir, cmd_args=None, log_file=''):
     for handler in root_logger.handlers[:]:
         root_logger.removeHandler(handler)
 
-    # ATTENTION: To make this work the file 'openerp-gevent' must be in some path that python can load!
+    # ATTENTION: To make this work the file 'openerp-gevent' must be in some path that python can load! It is included
+    #            in the odoo core!!!
     import odoo
     return odoo.main()
