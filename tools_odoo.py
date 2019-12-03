@@ -1,14 +1,34 @@
 # -*- coding: utf-'8' "-*-"
 import os
 import shutil
-from requests import Session, codes
-from xmlrpclib import ServerProxy
 from urlparse import urljoin
+# from xmlrpclib import ServerProxy
 
 from tools_shell import shell, check_disk_space, test_zip, make_zip_archive
 
 import logging
 _log = logging.getLogger()
+
+
+# ATTENTION: Importing requests may lead to segmentation faults on odoo startup!!!
+# from requests import Session, codes
+# ATTENTION: Version 2.3 is so old that it will not even recognise the REQUESTS_CA_BUNDLE env variable :(
+#            therefore we need to do it by saltstack with an symbolic link - check the o
+_log.info('python -m requests.certs >>> %s' % shell(['python', '-m', 'requests.certs']))
+ca_bundle = os.path.join('/etc/ssl/certs/', 'ca-certificates.crt')
+if os.path.isfile(ca_bundle):
+    os.environ['REQUESTS_CA_BUNDLE'] = ca_bundle
+    _log.warning('Environment var REQUESTS_CA_BUNDLE set to %s for python request library' % ca_bundle)
+    _log.info('python -m requests.certs >>> %s' % shell(['python', '-m', 'requests.certs']))
+try:
+    from requests import certs
+    requests_ca_bundle_path = certs.where()
+    _log.info('requests: python request library ca-bundle path: %s' % requests_ca_bundle_path)
+except Exception as e:
+    _log.error('requests: could not run certs.where() %s' % repr(e))
+    pass
+from requests import Session, codes
+
 
 # Min free space for backup location
 _min_odoo_backup_space_mb = 20000
