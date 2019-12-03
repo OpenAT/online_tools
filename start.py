@@ -6,35 +6,10 @@ import pwd
 import psutil
 
 from tools_settings import Settings
-# from tools import prepare_core
+from tools_shell import shell
 
 import logging
 _log = logging.getLogger()
-
-
-# ATTENTION: This method is !!!NOT!!! used anywherere but kept here as a reference
-# https://stackoverflow.com/questions/12034393/import-side-effects-on-logging-how-to-reset-the-logging-module
-def reset_logging():
-    manager = logging.root.manager
-    manager.disabled = logging.NOTSET
-    for logger in manager.loggerDict.values():
-        if isinstance(logger, logging.Logger):
-            logger.setLevel(logging.NOTSET)
-            logger.propagate = True
-            logger.disabled = False
-            logger.filters.clear()
-            handlers = logger.handlers.copy()
-            for handler in handlers:
-                # Copied from `logging.shutdown`.
-                try:
-                    handler.acquire()
-                    handler.flush()
-                    handler.close()
-                except (OSError, ValueError):
-                    pass
-                finally:
-                    handler.release()
-                logger.removeHandler(handler)
 
 
 def start(instance_dir, cmd_args=None, log_file=''):
@@ -54,11 +29,6 @@ def start(instance_dir, cmd_args=None, log_file=''):
     # Load configuration
     _log.info("Prepare instance settings")
     s = Settings(instance_dir, startup_args=cmd_args, log_file=log_file)
-
-    # Prepare the instance core
-    # _log.info("Prepare the odoo core %s" % s.instance_core_tag)
-    # prepare_core(s.instance_core_dir, tag=s.instance_core_tag, git_remote_url=s.core_remote_url, user=s.linux_user,
-    #              production_server=s.production_server)
 
     # Change current working directory to the folder odoo_dir inside the repo online
     working_dir = pj(s.instance_core_dir, 'odoo')
@@ -90,6 +60,8 @@ def start(instance_dir, cmd_args=None, log_file=''):
     _log.info("Environment $PATH: %s" % os.getcwd())
     _log.info("Environment $WORKING_DIRECTORY: %s" % os.environ.get("WORKING_DIRECTORY", ""))
     _log.info("Environment $PYTHONPATH: %s" % os.environ.get("PYTHONPATH", ""))
+    _log.info("Environment $REQUESTS_CA_BUNDLE: %s" % os.environ.get("REQUESTS_CA_BUNDLE", ""))
+    _log.info('Environment "python -m requests.certs" >>> %s' % shell(['python', '-m', 'requests.certs']))
 
     # Run odoo
     # HINT: 'import odoo' works because we are now in the FS-Online core directory that contains the folder odoo
@@ -105,4 +77,4 @@ def start(instance_dir, cmd_args=None, log_file=''):
     # ATTENTION: To make this work the file 'openerp-gevent' must be in some path that python can load! It is included
     #            in the odoo core!!!
     import odoo
-    return odoo.main()
+    odoo.main()

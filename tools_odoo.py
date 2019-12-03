@@ -2,7 +2,11 @@
 import os
 import shutil
 from urlparse import urljoin
-# from xmlrpclib import ServerProxy
+# ATTENTION: segfault warning!
+#            Importing requests may lead to segmentation faults on odoo startup on the production servers!!!
+#            The reason is totally unclear and is seems it depends on the import order as well!
+#            Therefore the request import was moved inside of the function which may help or may just mask the problem!
+# from requests import Session, codes
 
 from tools_shell import shell, check_disk_space, test_zip, make_zip_archive
 
@@ -10,51 +14,8 @@ import logging
 _log = logging.getLogger()
 
 
-# ATTENTION: Importing requests may lead to segmentation faults on odoo startup!!!
-# from requests import Session, codes
-# ATTENTION: Version 2.3 is so old that it will not even recognise the REQUESTS_CA_BUNDLE env variable :(
-#            therefore we need to do it by saltstack with an symbolic link - check the o
-_log.info('python -m requests.certs >>> %s' % shell(['python', '-m', 'requests.certs']))
-ca_bundle = os.path.join('/etc/ssl/certs/', 'ca-certificates.crt')
-if os.path.isfile(ca_bundle):
-    os.environ['REQUESTS_CA_BUNDLE'] = ca_bundle
-    _log.warning('Environment var REQUESTS_CA_BUNDLE set to %s for python request library' % ca_bundle)
-    _log.info('python -m requests.certs >>> %s' % shell(['python', '-m', 'requests.certs']))
-try:
-    from requests import certs
-    requests_ca_bundle_path = certs.where()
-    _log.info('requests: python request library ca-bundle path: %s' % requests_ca_bundle_path)
-except Exception as e:
-    _log.error('requests: could not run certs.where() %s' % repr(e))
-    pass
-from requests import Session, codes
-
-
 # Min free space for backup location
 _min_odoo_backup_space_mb = 20000
-
-# TODO
-# def _odoo_access_check(instance_dir, odoo_config=None):
-#     instance_dir = os.path.abspath(instance_dir)
-#     instance = os.path.basename(instance_dir)
-#     odoo_config = odoo_config or _odoo_config(instance_dir)
-#
-#     logging.debug('Checking odoo xmlrpc access for instance %s' % instance)
-#
-#     # Getting xmlrpc connection parameters
-#     # Default Settings
-#     xmlrpc_interface = "127.0.0.1"
-#     xmlrpc_port = "8069"
-#     # Overwrite with xmlrpcs or xmlrpc from server.conf
-#     if odoo_config.get('xmlrpcs'):
-#         xmlrpc_interface = odoo_config.get('xmlrpcs_interface') or xmlrpc_interface
-#         xmlrpc_port = odoo_config.get('xmlrpcs_port') or xmlrpc_port
-#     elif odoo_config.get('xmlrpc'):
-#         xmlrpc_interface = odoo_config.get('xmlrpc_interface') or xmlrpc_interface
-#         xmlrpc_port = odoo_config.get('xmlrpc_port') or xmlrpc_port
-#
-#     # Connect to odoo by xmlrpc
-#     odoo = ServerProxy('http://'+xmlrpc_interface+'/xmlrpc/db')
 
 
 def odoo_backup(database, backup_file, host='http://127.0.0.1:8069', master_pwd='admin', timeout=60 * 60 * 4):
@@ -75,6 +36,7 @@ def odoo_backup(database, backup_file, host='http://127.0.0.1:8069', master_pwd=
                'token': ''}
 
     _log.info("Request backup from %s" % url)
+    from requests import Session, codes
     session = Session()
     session.verify = True
     db_backup = session.post(url, data=payload, stream=True)
@@ -174,6 +136,7 @@ def odoo_restore(database, backup_zip_file, host='http://127.0.0.1:8069', master
                'mode': False}
 
     _log.info("Start restore POST request to %s" % url)
+    from requests import Session, codes
     session = Session()
     session.verify = True
     try:

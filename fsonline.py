@@ -26,10 +26,17 @@ from os.path import join as pj
 import sys
 import time
 
-import start
+# ATTENTION: segfault warning! backup > tools_odoo ... import requests
+#            Importing requests may lead to segmentation faults on odoo startup on the production servers!!!
+#            The reason is totally unclear and is seems it depends on the import order as well!
+#            There was some info in the old start.py that it is maybe related to the ssl certificate chain!?!
+#            Therefore the request import was moved inside a function which may help or may just mask the problem!
+#            Also the import order seems to help: backup should be imported first here
 import backup
 import restore
 import update
+import start
+
 
 import logging
 # Globally initialize the logging for this file
@@ -84,7 +91,7 @@ def fs_online():
         exit(0)
 
     # START
-    return start.start(known_args.instance_dir, cmd_args=unknown_args, log_file=known_args.log_file)
+    start.start(known_args.instance_dir, cmd_args=unknown_args, log_file=known_args.log_file)
 
 
 # ----------------------------
