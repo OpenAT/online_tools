@@ -115,7 +115,8 @@ def shell(cmd=list(), user=None, cwd=None, env=None, preexec_fn=None, log=True, 
         preexec_fn = _switch_user_function(linux_user_obj.pw_uid, linux_user_obj.pw_gid)
 
     # Log user Current-Working-Directory and shell command to be executed
-    _log.info('[%s@%s]$ %s' % (linux_user_obj.pw_name, cwd, ' '.join(cmd) if log else '**********'))
+    if log:
+        _log.info('[%s@%s]$ %s' % (linux_user_obj.pw_name, cwd, ' '.join(cmd)))
 
     # Execute shell command and return its output
     # HINT: this was the original solution but this will not log errors but send it to sys.stderr
