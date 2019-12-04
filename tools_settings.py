@@ -290,8 +290,6 @@ class Settings:
         # startup args
         self.startup_args = set_arg(self.startup_args, '--db-template', self.db_template)
 
-
-
         # odoo addon paths
         # ----------------
         # addons_path
@@ -312,21 +310,25 @@ class Settings:
 
         # instance_addons_dirs
         self.instance_addons_dirs = self.addons_path.split(',')
-        for addon_dir in self.instance_addons_dirs:
-            assert os.path.isdir(addon_dir), "Addon directory not found at %s!" % addon_dir
+        if not update_instance_mode:
+            for addon_dir in self.instance_addons_dirs:
+                assert os.path.isdir(addon_dir), "Addon directory not found at %s!" % addon_dir
 
         # all_addon_directories
         self.all_addon_directories = list()
         for d in self.instance_addons_dirs:
-            d = os.path.abspath(d)
-            for f in os.listdir(d):
-                f_dir = pj(d, f)
-                if os.path.islink(f_dir):
-                    link_path = os.path.realpath(f_dir)
-                    if os.path.isfile(pj(link_path, self.odoo_manifest)):
-                        self.all_addon_directories.append(link_path)
-                elif os.path.isdir(f_dir) and os.path.isfile(pj(f_dir, self.odoo_manifest)):
-                    self.all_addon_directories.append(f_dir)
+            # In update mode there may be no core yet!
+            test_dir = os.path.isdir(d) if update_instance_mode else True
+            if test_dir:
+                d = os.path.abspath(d)
+                for f in os.listdir(d):
+                    f_dir = pj(d, f)
+                    if os.path.islink(f_dir):
+                        link_path = os.path.realpath(f_dir)
+                        if os.path.isfile(pj(link_path, self.odoo_manifest)):
+                            self.all_addon_directories.append(link_path)
+                    elif os.path.isdir(f_dir) and os.path.isfile(pj(f_dir, self.odoo_manifest)):
+                        self.all_addon_directories.append(f_dir)
 
         # data_dir
         # --------
