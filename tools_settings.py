@@ -83,7 +83,8 @@ class Settings:
 
         # Environment information
         # -----------------------
-        self.production_server = tools.production_server_check(instance_dir)
+        pinstd = self.instance_dir if not update_instance_mode else os.path.dirname(os.path.dirname(self.instance_dir))
+        self.production_server = tools.production_server_check(pinstd)
         if not self.production_server:
             _log.warning("Development environment detected! May load development defaults!")
 

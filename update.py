@@ -117,7 +117,7 @@ def _prepare_update(instance_settings_obj, timeout=60*60*4, update_branch='o8'):
     # -----------------------------------------------------------------------------------
     if s.instance_core_dir != s_upd.instance_core_dir:
         prepare_core(s_upd.instance_core_dir, tag=s_upd.instance_core_tag, git_remote_url=s_upd.core_remote_url,
-                     user=s_upd.linux_user,
+                     user='cores' if s.production_server else s_upd.linux_user,
                      copy_core_dir=s.instance_core_dir,
                      production_server=s.production_server)
     else:
