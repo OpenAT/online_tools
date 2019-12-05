@@ -258,8 +258,8 @@ def _update(instance_settings_obj, target_commit='', pre_update_backup='', addon
         _log.info('Update done and instance running!')
         return True
 
-    # Run the addons update
-    # ---------------------
+    # Run the (addons) update
+    # -----------------------
     _log.info("Run the production instance odoo (addons) update!")
     python_exec = str(sys.executable)
 
@@ -271,6 +271,7 @@ def _update(instance_settings_obj, target_commit='', pre_update_backup='', addon
     odoo_sargs = set_arg(odoo_sargs, key='--stop-after-init')
 
     try:
+        # Final update of the production database
         res = shell([python_exec]+[odoo_server]+odoo_sargs, cwd=odoo_cwd, user=s.linux_user, timeout=timeout)
         if not s.log_file:
             _log.info('Production instance odoo addons update log/result:\n\n---\n%s\n---\n' % str(res))
@@ -278,19 +279,31 @@ def _update(instance_settings_obj, target_commit='', pre_update_backup='', addon
     # Restore in case of an error
     except Exception as e:
         _log.error('Update of the odoo addons failed in the production instance! %s' % repr(e))
-        # Restore commit and pre-update-backup
+        # Restore commit and pre-update-backup in the event of an update exception
         try:
             _log.warning("Try to restore pre-update-commit and backup after failed update!")
+            # Checkout the pre-update commit
             git_checkout(s.instance_dir, commit=s.git_commit, user=s.linux_user, pull=False)
             assert get_sha1(s.instance_dir, raise_exception=False) == s.git_commit, \
                 "Instance-commit does not match pre-update commit after restore attempt!"
+            # Restore pre-update backup
             restore.restore(s.instance_dir, pre_update_backup, log_file=log_file, start_after_restore=True)
-            assert service_running(s.linux_instance_service)
+            # Restart the instance service
+            if service_exists(s.linux_instance_service):
+                service_control(s.linux_instance_service, 'start')
+                assert service_running(s.linux_instance_service), "Could not start the instance service!"
         except Exception as e2:
             _log.critical("Restoring the instance to pre-update-backup failed! %s" % repr(e))
             raise e2
         _log.error('Update of the production database failed but pre-update restore was successful.')
         return False
+
+    # Restart the instance service
+    # ----------------------------
+    if service_exists(s.linux_instance_service):
+        service_control(s.linux_instance_service, 'start')
+        sleep(8)
+        assert service_running(s.linux_instance_service), "Could not start the instance service!"
 
     return True
 
