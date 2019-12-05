@@ -10,7 +10,7 @@ import pwd
 
 from tools_settings import Settings, set_arg
 from tools_shell import find_file, shell
-from tools_git import git_latest, get_sha1, git_checkout, git_reset
+from tools_git import get_sha1, git_checkout, git_reset
 from tools import prepare_repository, prepare_core, inifile_to_dict, send_email, find_addons_to_update, \
     service_control, service_exists, service_running
 import backup
@@ -96,7 +96,7 @@ def _prepare_update(instance_settings_obj, timeout=60*60*4, update_branch='o8'):
 
     # Get update_instance settings
     # ----------------------------
-    _log.info('Get update_instance settings after odoo core preparation for the update_instance!')
+    _log.info('Get the update_instance settings after pull of latest update_instance repository from the remote!')
     s_upd = Settings(update_instance_dir, startup_args=s.original_startup_args, log_file=s.log_file,
                      update_instance_mode=True)
     send_email(subject='FS-Online update started for instance %s to core %s and instance-commit %s'
@@ -126,6 +126,7 @@ def _prepare_update(instance_settings_obj, timeout=60*60*4, update_branch='o8'):
 
     # Update the update_instance settings (since the core exists now)
     # -----------------------------------
+    _log.info('Refresh the update_instance settings after update_instance core preparation')
     s_upd = Settings(update_instance_dir, startup_args=s.original_startup_args, log_file=s.log_file,
                      update_instance_mode=True)
 
@@ -215,9 +216,6 @@ def _update(instance_settings_obj, target_commit='', pre_update_backup='', addon
     # ---------------------------------
     _log.info("Checkout commit '%s' for production instance '%s'" % (target_commit, s.instance_dir))
     try:
-        # HINT: Since this is a commit git_checkout called from git_latest would fail if it tries to pull something
-        #       from the remote. Therefore it was replaced with git_reset and git_checkout
-        # git_latest(s.instance_dir, commit=target_commit, user=s.linux_user)
         git_reset(s.instance_dir, user=s.linux_user)
         git_checkout(s.instance_dir, commit=target_commit, user=s.linux_user, pull=False)
         assert get_sha1(s.instance_dir, raise_exception=False) == target_commit, \
@@ -231,7 +229,6 @@ def _update(instance_settings_obj, target_commit='', pre_update_backup='', addon
         if get_sha1(s.instance_dir, raise_exception=False) != s.git_commit:
             _log.info('Try to restore pre-update instance commit %s' % s.git_commit)
             try:
-                # git_latest(s.instance_dir, commit=s.git_commit, user=s.linux_user)
                 git_checkout(s.instance_dir, commit=s.git_commit, user=s.linux_user, pull=False)
                 assert get_sha1(s.instance_dir, raise_exception=False) == s.git_commit, \
                     "Instance-commit does not match pre-update commit after restore attempt!"
@@ -284,7 +281,6 @@ def _update(instance_settings_obj, target_commit='', pre_update_backup='', addon
         # Restore commit and pre-update-backup
         try:
             _log.warning("Try to restore pre-update-commit and backup after failed update!")
-            # git_latest(s.instance_dir, commit=s.git_commit, user=s.linux_user)
             git_checkout(s.instance_dir, commit=s.git_commit, user=s.linux_user, pull=False)
             assert get_sha1(s.instance_dir, raise_exception=False) == s.git_commit, \
                 "Instance-commit does not match pre-update commit after restore attempt!"

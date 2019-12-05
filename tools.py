@@ -104,8 +104,9 @@ def prepare_repository(repo_dir='', service_name='', git_remote_url='', branch='
         if service_exists(service_name):
             service_control(service_name, 'stop')
 
-        # Checkout latest version
-        git.git_latest(repo_dir, commit=branch, user=user)
+        # Checkout latest version with pull from remote!
+        git.git_reset(repo_dir, user=user)
+        git.git_checkout(repo_dir, user=user, pull=True)
 
 
 def set_core_linux_user_and_rights(core_dir, production_server=True):
@@ -199,7 +200,8 @@ def prepare_core(core_dir, tag='', git_remote_url='', user='', copy_core_dir='',
                   "" % (tag, git_remote_url, core_dir, user))
         if production_server:
             try:
-                git.git_latest(core_dir, commit=tag, user=user)
+                git.git_reset(core_dir, user=user)
+                git.git_checkout(core_dir, commit=tag, user=user, pull=False)
             except Exception as e:
                 os.unlink(core_lock_file)
                 _log.error('Core Checkout failed! %s' % repr(e))
@@ -216,6 +218,7 @@ def prepare_core(core_dir, tag='', git_remote_url='', user='', copy_core_dir='',
                 # Unlink the core_dir folder if any exits (maybe just a leftover)
                 if os.path.exists(core_dir):
                     _log.warning("Deleting faulty core_dir at %s" % core_dir)
+                    assert 'cores' in core_dir, "Stopped for safety reasons! 'cores' not in path!"
                     assert len(core_dir.split('/')) > 4, "Stopped for safety reasons! Not enough Subfolders!"
                     shell(['rm', '-rf', core_dir], user=user, cwd=cores_base_dir)
                 # HINT: branch can also take tags and detaches the HEAD at that commit in the resulting repository

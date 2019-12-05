@@ -133,8 +133,9 @@ def git_clone(repo_remote_url, branch='o8', target_dir='', cwd='', user=None, ti
 
 
 @retry(Exception, tries=3)
-def git_checkout(path, commit='o8', user=None, timeout=60*90, pull=False):
+def git_checkout(path, commit='o8', user=None, timeout=60*90, pull=None):
     _log.info("Git: Checkout commit or branch %s for git repository in %s." % (commit, path))
+    assert pull is not None, "For git_checkout pull= must be set explicitly to 'True' or 'False' on calling!"
     if not pull:
         _log.warning('Checkout is called without pull=True! This will NOT merge latest changes from remote!')
     assert os.path.exists(path), 'Path not found: %s' % path
@@ -213,30 +214,6 @@ def git_reset(path, user=None):
     except Exception as e:
         _log.error('Cleanup of repository failed! %s' % repr(e))
         raise e
-
-
-@retry(Exception, tries=3)
-def git_latest(path, commit='o8', user=None):
-    _log.info("Git: Update repo %s to commit or branch %s" % (path, commit))
-    assert os.path.exists(path), 'Path not found: %s' % path
-
-    # Default timeout
-    _timeout = 60*5
-
-    # Reset the repository
-    _log.info('Update, clean and reset the repository at %s' % path)
-    git_reset(path, user=user)
-
-    # Checkout the branch/commit
-    # HINT: pull=True makes sure the latest remote is merged! (therefore this is called git_latest!)
-    _log.info("Checkout commit or branch %s for repository %s" % (commit, path))
-    try:
-        git_checkout(path, commit=commit, user=user, pull=True)
-    except Exception as e:
-        _log.error('Git checkout failed! %s' % repr(e))
-        raise e
-
-    return True
 
 
 # TODO: I used a different method in start.py to check for differences in submodules?!?
