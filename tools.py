@@ -69,8 +69,8 @@ def service_control(service, state, wait=10):
     time.sleep(wait)
 
     # Return
-    if (service in ["start", "restart", "reload"] and service_running(service)) or \
-       (service == "stop" and not service_running(service)):
+    if (state in ["start", "restart", "reload"] and service_running(service)) or \
+       (state == "stop" and not service_running(service)):
         _log.info("Service %s successfully changed state to %sed" % (service, state))
         return True
     else:
