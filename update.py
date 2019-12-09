@@ -340,6 +340,16 @@ def update(instance_dir, update_branch='o8', cmd_args=None, log_file='', paralle
     subject_success = 'FS-Online update for instance %s is DONE! ' % s.instance.upper()
     subject_error = 'FS-Online update for instance %s has FAILED! ' % s.instance.upper()
 
+    # Set correct user and group for the logfile
+    if log_file and os.path.exists(log_file) and s.production_server and s.linux_user:
+        _log.info("Set user and group for log_file %s to %s:%s" % (log_file, s.linux_user, s.linux_user))
+        try:
+            shell(['chown', s.linux_user+':'+s.linux_user, log_file],
+                  cwd=os.path.dirname(log_file), timeout=60)
+        except Exception as e:
+            _log.warning('Set user and group failed! %s' % repr(e))
+            pass
+
     # Pre update checks
     # -----------------
     try:
