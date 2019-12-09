@@ -67,6 +67,9 @@ class Settings:
 
         # Startup arguments
         # -----------------
+        if startup_args is None:
+            _log.error('startup_args is None! Set it to an empty list!')
+            startup_args = list()
         # Initial startup arguments
         self.original_startup_args = startup_args[:]
         # Computed startup arguments

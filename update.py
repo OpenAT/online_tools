@@ -222,8 +222,8 @@ def _update(instance_settings_obj, target_commit='', pre_update_backup='', addon
             "Instance-directory-sha1 does not match update-target-commit-sha1 after checkout!"
 
         # Refresh the settings after checkout of new commit
-        _log.info("Refresh the instance settings after target commit checkout!")
-        s_target = Settings(s_preupd.instance_dir, log_file=log_file)
+        _log.info("Refresh the production instance settings after target commit checkout!")
+        s_target = Settings(s_preupd.instance_dir, startup_args=s_preupd.original_startup_args, log_file=log_file)
 
     # Restore in case of an error
     except Exception as e:
@@ -340,7 +340,7 @@ def update(instance_dir, update_branch='o8', cmd_args=None, log_file='', paralle
     subject_success = 'FS-Online update for instance %s is DONE! ' % s.instance.upper()
     subject_error = 'FS-Online update for instance %s has FAILED! ' % s.instance.upper()
 
-    # Set correct user and group for the logfile
+    # Set correct user and group for the log_file
     if log_file and os.path.exists(log_file) and s.production_server and s.linux_user:
         _log.info("Set user and group for log_file %s to %s:%s" % (log_file, s.linux_user, s.linux_user))
         try:
