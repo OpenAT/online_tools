@@ -193,53 +193,57 @@ def _update(instance_settings_obj, target_commit='', pre_update_backup='', addon
             timeout=60*60*4, log_file=''):
     assert instance_settings_obj, "Instance settings missing!"
     assert len(target_commit) >= 2, "Update-target-commit seems incorrect! %s" % target_commit
-    s = instance_settings_obj
+    s_preupd = instance_settings_obj
     _log.info('Starting update of the production instance "%s" to commit "%s" with addon-updates for %s'
-              '' % (s.instance, target_commit, str(addons_to_update)))
+              '' % (s_preupd.instance, target_commit, str(addons_to_update)))
     if addons_to_update or addons_string:
         assert os.path.isfile(pre_update_backup), "Pre-Update-Backup file is missing at %s" % pre_update_backup
         assert addons_to_update and addons_string, "addons_to_update and addons_string must be given or none of them!"
 
     # Check the git commits
     # ---------------------
-    if s.git_commit == target_commit:
+    if s_preupd.git_commit == target_commit:
         _log.warning("INSTANCE COMMIT DID NOT CHANGE! PRODUCTION UPDATE SKIPPED!")
         return True
 
     # Stop the odoo instance service
     # ------------------------------
-    if service_exists(s.linux_instance_service):
-        service_control(s.linux_instance_service, 'stop')
-        assert not service_running(s.linux_instance_service), "Could not stop the instance service!"
+    if service_exists(s_preupd.linux_instance_service):
+        service_control(s_preupd.linux_instance_service, 'stop')
+        assert not service_running(s_preupd.linux_instance_service), "Could not stop the instance service!"
 
     # Checkout the update-target-commit
     # ---------------------------------
-    _log.info("Checkout commit '%s' for production instance '%s'" % (target_commit, s.instance_dir))
+    _log.info("Checkout commit '%s' for production instance '%s'" % (target_commit, s_preupd.instance_dir))
     try:
-        git_reset(s.instance_dir, user=s.linux_user)
-        git_checkout(s.instance_dir, commit=target_commit, user=s.linux_user, pull=False)
-        assert get_sha1(s.instance_dir, raise_exception=False) == target_commit, \
+        git_reset(s_preupd.instance_dir, user=s_preupd.linux_user)
+        git_checkout(s_preupd.instance_dir, commit=target_commit, user=s_preupd.linux_user, pull=False)
+        assert get_sha1(s_preupd.instance_dir, raise_exception=False) == target_commit, \
             "Instance-directory-sha1 does not match update-target-commit-sha1 after checkout!"
+
+        # Refresh the settings after checkout of new commit
+        _log.info("Refresh the instance settings after target commit checkout!")
+        s_target = Settings(s_preupd.instance_dir, log_file=log_file)
 
     # Restore in case of an error
     except Exception as e:
         _log.error('Could not checkout the update-target-commit! %s' % repr(e))
 
         # Restore original commit if needed
-        if get_sha1(s.instance_dir, raise_exception=False) != s.git_commit:
-            _log.info('Try to restore pre-update instance commit %s' % s.git_commit)
+        if get_sha1(s_preupd.instance_dir, raise_exception=False) != s_preupd.git_commit:
+            _log.info('Try to restore pre-update instance commit %s' % s_preupd.git_commit)
             try:
-                git_checkout(s.instance_dir, commit=s.git_commit, user=s.linux_user, pull=False)
-                assert get_sha1(s.instance_dir, raise_exception=False) == s.git_commit, \
+                git_checkout(s_preupd.instance_dir, commit=s_preupd.git_commit, user=s_preupd.linux_user, pull=False)
+                assert get_sha1(s_preupd.instance_dir, raise_exception=False) == s_preupd.git_commit, \
                     "Instance-commit does not match pre-update commit after restore attempt!"
             except Exception as e2:
-                _log.critical('Could not restore pre-update instance commit %s' % s.git_commit)
+                _log.critical('Could not restore pre-update instance commit %s' % s_preupd.git_commit)
                 raise e2
 
         # Restart the instance service
-        if service_exists(s.linux_instance_service):
-            service_control(s.linux_instance_service, 'start')
-            assert service_running(s.linux_instance_service), "Could not start the instance service!"
+        if service_exists(s_preupd.linux_instance_service):
+            service_control(s_preupd.linux_instance_service, 'start')
+            assert service_running(s_preupd.linux_instance_service), "Could not start the instance service!"
 
         # If the restore of the original commit worked and the service could be started we can return 'False'
         _log.error('Update of the production database failed.')
@@ -251,9 +255,9 @@ def _update(instance_settings_obj, target_commit='', pre_update_backup='', addon
         _log.warning("NO ADDONS TO UPDATE! SKIPPING THE -u ODOO UPDATE!")
 
         # Restart the instance service
-        if service_exists(s.linux_instance_service):
-            service_control(s.linux_instance_service, 'start')
-            assert service_running(s.linux_instance_service), "Could not start the instance service!"
+        if service_exists(s_preupd.linux_instance_service):
+            service_control(s_preupd.linux_instance_service, 'start')
+            assert service_running(s_preupd.linux_instance_service), "Could not start the instance service!"
 
         _log.info('Update done and instance running!')
         return True
@@ -261,19 +265,22 @@ def _update(instance_settings_obj, target_commit='', pre_update_backup='', addon
     # Run the (addons) update
     # -----------------------
     _log.info("Run the production instance odoo (addons) update!")
-    python_exec = str(sys.executable)
-
-    odoo_server = pj(s.instance_core_dir, 'odoo/openerp-server')
-    odoo_cwd = pj(s.instance_core_dir, 'odoo')
-
-    odoo_sargs = s.startup_args[:]
-    odoo_sargs = set_arg(odoo_sargs, key='-u', value=addons_string)
-    odoo_sargs = set_arg(odoo_sargs, key='--stop-after-init')
-
     try:
+        python_exec = str(sys.executable)
+
+        # ATTENTION: Use the refreshed instance settings 's_target'!
+        odoo_server = pj(s_target.instance_core_dir, 'odoo/openerp-server')
+        odoo_cwd = pj(s_target.instance_core_dir, 'odoo')
+
+        odoo_sargs = s_target.startup_args[:]
+        odoo_sargs = set_arg(odoo_sargs, key='-u', value=addons_string)
+        odoo_sargs = set_arg(odoo_sargs, key='--stop-after-init')
+        if log_file:
+            odoo_sargs = set_arg(odoo_sargs, key='--logfile', value=log_file)
+
         # Final update of the production database
-        res = shell([python_exec]+[odoo_server]+odoo_sargs, cwd=odoo_cwd, user=s.linux_user, timeout=timeout)
-        if not s.log_file:
+        res = shell([python_exec]+[odoo_server]+odoo_sargs, cwd=odoo_cwd, user=s_target.linux_user, timeout=timeout)
+        if not s_target.log_file:
             _log.info('Production instance odoo addons update log/result:\n\n---\n%s\n---\n' % str(res))
 
     # Restore in case of an error
@@ -283,15 +290,15 @@ def _update(instance_settings_obj, target_commit='', pre_update_backup='', addon
         try:
             _log.warning("Try to restore pre-update-commit and backup after failed update!")
             # Checkout the pre-update commit
-            git_checkout(s.instance_dir, commit=s.git_commit, user=s.linux_user, pull=False)
-            assert get_sha1(s.instance_dir, raise_exception=False) == s.git_commit, \
+            git_checkout(s_preupd.instance_dir, commit=s_preupd.git_commit, user=s_preupd.linux_user, pull=False)
+            assert get_sha1(s_preupd.instance_dir, raise_exception=False) == s_preupd.git_commit, \
                 "Instance-commit does not match pre-update commit after restore attempt!"
             # Restore pre-update backup
-            restore.restore(s.instance_dir, pre_update_backup, log_file=log_file, start_after_restore=True)
+            restore.restore(s_preupd.instance_dir, pre_update_backup, log_file=log_file, start_after_restore=True)
             # Restart the instance service
-            if service_exists(s.linux_instance_service):
-                service_control(s.linux_instance_service, 'start')
-                assert service_running(s.linux_instance_service), "Could not start the instance service!"
+            if service_exists(s_preupd.linux_instance_service):
+                service_control(s_preupd.linux_instance_service, 'start')
+                assert service_running(s_preupd.linux_instance_service), "Could not start the instance service!"
         except Exception as e2:
             _log.critical("Restoring the instance to pre-update-backup failed! %s" % repr(e))
             raise e2
@@ -300,10 +307,10 @@ def _update(instance_settings_obj, target_commit='', pre_update_backup='', addon
 
     # Restart the instance service
     # ----------------------------
-    if service_exists(s.linux_instance_service):
-        service_control(s.linux_instance_service, 'start')
+    if service_exists(s_target.linux_instance_service):
+        service_control(s_target.linux_instance_service, 'start')
         sleep(8)
-        assert service_running(s.linux_instance_service), "Could not start the instance service!"
+        assert service_running(s_target.linux_instance_service), "Could not start the instance service!"
 
     return True
 
