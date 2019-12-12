@@ -86,10 +86,18 @@ def restore(instance_dir, backup_zip_file, mode='manual', log_file='', cmd_args=
             assert not service_running(s.linux_instance_service), "Could not stop service %s" % s.linux_instance_service
 
         # Restore 'filestore' folder
+        # ATTENTION: s.filestore INCLUDES the database name! e.d.: '.../dadi/data_dir/filestore/dadi'
         _log.info('Restore filestore from %s to %s' % (backup_zip_file, s.filestore))
         with zipfile.ZipFile(backup_zip_file) as archive:
-            for f in archive.namelist():
-                if f.startswith('filestore/'):
+            for f in archive.infolist():
+                if f.filename.startswith('filestore/'):
+                    # Create the file target name
+                    # E.g. source='filestore/dadi/01/file.txt' or 'filestore/01/file.txt' target='01/file.txt'
+                    if f.filename.startswith('filestore/'+s.db_name+'/'):
+                        target = f.filename.lstrip('filestore/'+s.db_name+'/')
+                    else:
+                        target = f.filename.lstrip('filestore/')
+                    f.filename = target
                     archive.extract(f, s.filestore)
 
         # Create and restore the database
