@@ -91,14 +91,19 @@ def restore(instance_dir, backup_zip_file, mode='manual', log_file='', cmd_args=
         with zipfile.ZipFile(backup_zip_file) as archive:
             for f in archive.infolist():
                 if f.filename.startswith('filestore/'):
+                    _log.debug('filename: %s' % f.filename)
                     # Create the file target name
                     # E.g. source='filestore/dadi/01/file.txt' or 'filestore/01/file.txt' target='01/file.txt'
+                    # ATTENTION: Do not use lstrip()! 'filestore/e0/'.lstrip('filestore/') results in '0/' ?!?
                     if f.filename.startswith('filestore/'+s.db_name+'/'):
-                        target = f.filename.lstrip('filestore/'+s.db_name+'/')
+                        target = f.filename.split('filestore/'+s.db_name+'/', 1)[1]
                     else:
-                        target = f.filename.lstrip('filestore/')
-                    f.filename = target
-                    archive.extract(f, s.filestore)
+                        target = f.filename.split('filestore/', 1)[1]
+                    if target:
+                        _log.debug('target: %s' % target)
+                        f.filename = target
+                        _log.debug('target filename: %s' % f.filename)
+                        archive.extract(f, s.filestore)
 
         # Create and restore the database
         _log.info('Restore instance database %s from %s' % (s.db_name, backup_zip_file))
