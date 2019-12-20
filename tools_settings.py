@@ -230,6 +230,8 @@ class Settings:
 
         # Database
         # --------
+        _log.info('Compute database connection parameters')
+
         # db_name
         self.db_name = sargs[sargs.index('-d')+1] if '-d' in sargs else self.server_conf.get('db_name')
         if not self.db_name:
@@ -295,6 +297,10 @@ class Settings:
             self.db_template = self.server_conf.get('db_template', self.db_template)
         # startup args
         self.startup_args = set_arg(self.startup_args, '--db-template', self.db_template)
+
+        _log.info('db_host: %s, db_port: %s, db_name: %s, db_user: %s, db_password: %s'
+                  '' % (self.db_host, self.db_port, self.db_name,
+                        self.db_user, str('*'*len(self.db_password)) if self.db_password else ''))
 
         # odoo addon paths
         # ----------------
