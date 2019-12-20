@@ -416,7 +416,7 @@ class Settings:
 
         # Status and update information
         if not update_instance_mode:
-
+            _log.info("Get status and update information from deprecated status.ini file")
             # DEPRECATED: 'status.ini'
             # WARNING: status.ini is deprecated since the new logging is good enough!
             #          The update_lock_file must be used to suppress updates!
@@ -438,5 +438,6 @@ class Settings:
             self.update_lock_file_name = 'update.lock'
             self.update_lock_file = pj(instance_dir, self.update_lock_file_name)
 
-        _log.info("Instance '%s' computed startup arguments: %s" % (self.instance, self.startup_args))
+        _log.info('Compute settings for instance %s successful!' % self.instance)
+        _log.info("Instance '%s' computed startup arguments: %s" % (self.instance, str(self.startup_args)))
         _log.debug("Instance Settings:\n%s" % pformat(self.__dict__))
