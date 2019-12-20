@@ -385,7 +385,7 @@ def update(instance_dir, update_branch='o8', cmd_args=None, log_file='', paralle
 
     except Exception as e:
         msg = "FS-Online update for instance %s failed at pre-update-preparations! %s" % (s.instance.upper(), repr(e))
-        _log.error(msg)
+        _log.error(str(e))
         send_email(subject=subject_error, body=msg)
         # Cleanup and return
         os.unlink(s.update_lock_file)
