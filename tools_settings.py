@@ -178,6 +178,13 @@ class Settings:
         # update mode
         if update_instance_mode:
             self.server_conf_file = pj(instance_dir, 'server.conf')
+            # ATTENTION: If the update instance directory contains no server.conf we use some infos from the instance
+            #            server.conf for the update settings
+            #            TODO: An new class that inherits from this class for the update_instance setting would be much
+            #                  better!
+            if not os.path.exists(self.server_conf_file):
+                if pinstd != self.instance_dir:
+                    instance_server_conf = tools.inifile_to_dict(pj(pinstd, 'server.conf'))
         # Set to empty string if the file does not exist!
         self.server_conf_file = '' if not os.path.isfile(self.server_conf_file) else self.server_conf_file
         # startup args
@@ -213,12 +220,15 @@ class Settings:
         # XMLRPC PORTS
         # ------------
         self.xmlrpc_port = (sargs[sargs.index('--xmlrpc-port') + 1] if '--xmlrpc-port' in sargs
-                            else self.server_conf.get('xmlrpc_port', '8069'))
+                            else self.server_conf.get('xmlrpc_port', ''))
         self.xmlrpcs_port = (sargs[sargs.index('--xmlrpcs-port') + 1] if '--xmlrpcs-port' in sargs
                              else self.server_conf.get('xmlrpcs_port', ''))
+        # development default
+        if not self.xmlrpc_port and not self.production_server:
+            self.xmlrpc_port = '8069'
         # update mode
         if update_instance_mode:
-            self.xmlrpc_port = str(int(self.xmlrpc_port) + 10)
+            self.xmlrpc_port = str(int(self.xmlrpc_port or instance_server_conf['xmlrpc_port']) + 10)
             if self.xmlrpcs_port:
                 self.xmlrpcs_port = str(int(self.xmlrpcs_port) + 10)
         # startup args
@@ -238,7 +248,7 @@ class Settings:
             self.db_name = self.instance
         # update mode
         if update_instance_mode:
-            self.db_name = self.server_conf.get('db_name', self.instance)
+            assert '_update' in self.db_name, "Update database name must contain '_update'!"
         # startup args
         self.startup_args = set_arg(self.startup_args, '-d', self.db_name)
 
@@ -249,7 +259,7 @@ class Settings:
             self.db_user = 'vagrant'
         # update mode
         if update_instance_mode:
-            self.db_user = self.server_conf.get('db_user', self.db_user)
+            self.db_user = self.db_user or instance_server_conf['db_user']
         # startup args
         self.startup_args = set_arg(self.startup_args, '-r', self.db_user)
         assert self.db_user != "postgres", "Database user can not be 'postgres' for security reasons!"
@@ -261,7 +271,7 @@ class Settings:
             self.db_password = 'vagrant'
         # update mode
         if update_instance_mode:
-            self.db_password = self.server_conf.get('db_password', self.db_password)
+            self.db_password = self.db_password or instance_server_conf['db_password']
         # startup args
         self.startup_args = set_arg(self.startup_args, '-w', self.db_password)
 
@@ -272,7 +282,7 @@ class Settings:
             self.db_host = '127.0.0.1'
         # update mode
         if update_instance_mode:
-            self.db_host = self.server_conf.get('db_host', self.db_host)
+            self.db_host = self.db_host or instance_server_conf['db_host']
         # startup args
         self.startup_args = set_arg(self.startup_args, '--db_host', self.db_host)
 
@@ -283,18 +293,14 @@ class Settings:
             self.db_port = '5432'
         # update mode
         if update_instance_mode:
-            self.db_port = self.server_conf.get('db_port', self.db_port)
+            self.db_port = self.db_port or instance_server_conf['db_port']
         # startup args
         self.startup_args = set_arg(self.startup_args, '--db_port', self.db_port)
 
         # db_template
         self.db_template = (sargs[sargs.index('--db-template')+1] if '--db-template' in sargs
-                            else self.server_conf.get('db_template'))
-        if not self.db_template:
-            self.db_template = 'template0'
-        # update mode
-        if update_instance_mode:
-            self.db_template = self.server_conf.get('db_template', self.db_template)
+                            else self.server_conf.get('db_template', 'template0'))
+
         # startup args
         self.startup_args = set_arg(self.startup_args, '--db-template', self.db_template)
 
