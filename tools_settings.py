@@ -359,6 +359,7 @@ class Settings:
         # ----------------------------
         # DEFAULT ODOO STARTUP OPTIONS
         # ----------------------------
+        _log.info("Add odoo startup commandline options")
 
         # --db-filter
         if '--db-filter' not in sargs and 'dbfilter' not in self.server_conf:
@@ -383,6 +384,7 @@ class Settings:
         # -----------
         # HELPER DATA
         # -----------
+        _log.info("Compute helper data")
 
         # Instance URL
         self.instance_local_url = 'http://127.0.0.1:'+self.xmlrpc_port
