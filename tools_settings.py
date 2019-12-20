@@ -215,16 +215,18 @@ class Settings:
         self.xmlrpc_port = (sargs[sargs.index('--xmlrpc-port') + 1] if '--xmlrpc-port' in sargs
                             else self.server_conf.get('xmlrpc_port', '8069'))
         self.xmlrpcs_port = (sargs[sargs.index('--xmlrpcs-port') + 1] if '--xmlrpcs-port' in sargs
-                             else self.server_conf.get('xmlrpcs_port'))
+                             else self.server_conf.get('xmlrpcs_port', ''))
         # update mode
         if update_instance_mode:
-            self.xmlrpc_port = str(int(self.xmlrpc_port) + 10) if self.xmlrpc_port else self.xmlrpc_port
-            self.xmlrpcs_port = str(int(self.xmlrpcs_port) + 10) if self.xmlrpcs_port else self.xmlrpcs_port
+            self.xmlrpc_port = str(int(self.xmlrpc_port) + 10)
+            if self.xmlrpcs_port:
+                self.xmlrpcs_port = str(int(self.xmlrpcs_port) + 10)
         # startup args
         if self.xmlrpc_port:
             self.startup_args = set_arg(self.startup_args, '--xmlrpc-port', self.xmlrpc_port)
         if self.xmlrpcs_port:
             self.startup_args = set_arg(self.startup_args, '--xmlrpcs-port', self.xmlrpcs_port)
+        _log.info('xmlrpc_port: %s xmlrpcs_port: %s' % (self.xmlrpc_port, self.xmlrpcs_port))
 
         # Database
         # --------
@@ -387,13 +389,16 @@ class Settings:
         _log.info("Compute helper data")
 
         # Instance URL
+        _log.info("Compute instance url")
         self.instance_local_url = 'http://127.0.0.1:'+self.xmlrpc_port
 
         # Database URL
+        _log.info("Compute database url")
         self.db_url = ('postgresql://' + self.db_user + ':' + self.db_password +
                        '@' + self.db_host + ':' + self.db_port + '/' + self.db_name)
 
         # Instance database connection string for psycopg2
+        _log.info("Compute instance database connection string")
         self.db_con_dict = {
             'dbname': self.db_name,
             'user': self.db_user,
@@ -404,6 +409,7 @@ class Settings:
         self.db_con_string = " ".join(str(key)+"='"+str(value)+"'" for key, value in self.db_con_dict.iteritems())
 
         # System database 'postgres' connection string for psycopg2 (e.g.: for dropping the instance db)
+        _log.info("Compute 'postgres' database connection string")
         self.postgres_db_con_dict = {
             'dbname': 'postgres',
             'user': self.db_user,
