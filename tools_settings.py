@@ -312,10 +312,10 @@ class Settings:
         # ----------------
         # addons_path
         self.addons_path = (sargs[sargs.index('--addons-path')+1] if '--addons-path' in sargs
-                            else self.server_conf.get('addons_path'))
+                            else self.server_conf.get('addons_path', ''))
         # update mode
         if update_instance_mode:
-            self.addons_path = self.server_conf.get('addons_path')
+            self.addons_path = self.server_conf.get('addons_path', '')
         # Default addon paths
         if not self.addons_path:
             _log.warning('No addon paths given! Using default addon paths')
@@ -350,10 +350,10 @@ class Settings:
 
         # data_dir
         # --------
-        self.data_dir = sargs[sargs.index('-D')+1] if '-D' in sargs else self.server_conf.get('data_dir')
+        self.data_dir = sargs[sargs.index('-D')+1] if '-D' in sargs else self.server_conf.get('data_dir', '')
         # update mode
         if update_instance_mode:
-            self.data_dir = self.server_conf.get('data_dir')
+            self.data_dir = self.server_conf.get('data_dir', '')
         # default data_dir
         if not self.data_dir:
             self.data_dir = pj(self.instance_dir, 'data_dir')
@@ -361,7 +361,8 @@ class Settings:
         if not update_instance_mode:
             assert os.path.isdir(self.data_dir), "Odoo data directory not found at %s!" % self.data_dir
         # startup args
-        self.startup_args = set_arg(self.startup_args, '-D', self.data_dir)
+        if self.data_dir:
+            self.startup_args = set_arg(self.startup_args, '-D', self.data_dir)
 
         # filestore
         # ---------
