@@ -9,7 +9,7 @@ import sys
 import pwd
 
 from tools_settings import Settings, set_arg
-from tools_shell import find_file, shell
+from tools_shell import find_file, shell, tail_no_exception
 from tools_git import get_sha1, git_checkout, git_reset
 from tools import prepare_repository, prepare_core, inifile_to_dict, send_email, find_addons_to_update, \
     service_control, service_exists, service_running
@@ -387,7 +387,10 @@ def update(instance_dir, update_branch='o8', cmd_args=None, log_file='', paralle
     except Exception as e:
         msg = "FS-Online update for instance %s failed at pre-update-preparations! %s" % (s.instance.upper(), repr(e))
         _log.error(str(e))
-        # TODO: append last lines of log_file
+        # Append last lines of log_file
+        if log_file:
+            log_tail = tail_no_exception(log_file, 50)
+            msg = msg + '\n\n\nlog tail:\n\n...\n %s' % log_tail if log_tail else msg
         send_email(subject=subject_error, body=msg)
         # Cleanup and return
         os.unlink(s.update_lock_file)
@@ -405,7 +408,10 @@ def update(instance_dir, update_branch='o8', cmd_args=None, log_file='', paralle
     except Exception as e:
         msg = "FS-Online update for instance %s failed with unexpected exception!\n\n%s" % (s.instance.upper(), repr(e))
         _log.critical(msg)
-        # TODO: append last lines of log_file
+        # Append last lines of log_file
+        if log_file:
+            log_tail = tail_no_exception(log_file, 50)
+            msg = msg + '\n\n\nlog tail:\n\n...\n %s' % log_tail if log_tail else msg
         # HINT: Do !NOT! remove the update_lock_file because an unexpected exception was raised in the final update!
         send_email(subject=subject_error+' WITH UNEXPECTED EXCEPTION!!!', body=msg)
         send_email(subject=subject_error + ' WITH UNEXPECTED EXCEPTION!!!', body=msg,

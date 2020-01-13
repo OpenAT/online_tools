@@ -272,3 +272,62 @@ def find_file(file_name, start_dir='/', max_finds=0, exclude_folders=tuple(), wa
                     walk_method.__name__))
 
     return res
+
+
+# Yeuk Hon Wong
+# https://gist.github.com/amitsaha/5990310
+def tail(filename, n):
+    stat = os.stat(filename)
+    if stat.st_size == 0 or n == 0:
+        yield ''
+        return
+
+    page_size = 5
+    offsets = []
+    count = _n = n if n >= 0 else -n
+
+    last_byte_read = last_nl_byte = starting_offset = stat.st_size - 1
+
+    with open(filename, 'r') as f:
+        while count > 0:
+            starting_byte = last_byte_read - page_size
+            if last_byte_read == 0:
+                offsets.append(0)
+                break
+            elif starting_byte < 0:
+                f.seek(0)
+                text = f.read(last_byte_read)
+            else:
+                f.seek(starting_byte)
+                text = f.read(page_size)
+
+            for i in range(-1, -1*len(text)-1, -1):
+                last_byte_read -= 1
+                if text[i] == '\n':
+                    last_nl_byte = last_byte_read
+                    starting_offset = last_nl_byte + 1
+                    offsets.append(starting_offset)
+            count -= 1
+
+    offsets = offsets[len(offsets)-_n:]
+    offsets.reverse()
+
+    with open(filename, 'r') as f:
+        for i, offset in enumerate(offsets):
+            f.seek(offset)
+
+            if i == len(offsets) - 1:
+                yield f.read()
+            else:
+                bytes_to_read = offsets[i+1] - offset
+                yield f.read(bytes_to_read)
+
+
+def tail_no_exception(filename, n):
+    try:
+        res = tail(filename, n)
+        return res
+    except Exception as e:
+        _log.warning('tail() failed: %s' % repr(e))
+        return None
+
