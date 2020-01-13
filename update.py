@@ -149,6 +149,7 @@ def _prepare_update(instance_settings_obj, timeout=60*60*4, update_branch='o8'):
     # Backup
     _log.info('Creating pre-update-backup')
     pre_update_backup = backup.backup(s.instance_dir, log_file=s_upd.log_file, settings=s)
+    assert pre_update_backup, "Backup failed!"
 
     # Append pre_update_backup file to the result
     result['pre_update_backup'] = pre_update_backup
@@ -386,6 +387,7 @@ def update(instance_dir, update_branch='o8', cmd_args=None, log_file='', paralle
     except Exception as e:
         msg = "FS-Online update for instance %s failed at pre-update-preparations! %s" % (s.instance.upper(), repr(e))
         _log.error(str(e))
+        # TODO: append last lines of log_file
         send_email(subject=subject_error, body=msg)
         # Cleanup and return
         os.unlink(s.update_lock_file)
@@ -403,6 +405,7 @@ def update(instance_dir, update_branch='o8', cmd_args=None, log_file='', paralle
     except Exception as e:
         msg = "FS-Online update for instance %s failed with unexpected exception!\n\n%s" % (s.instance.upper(), repr(e))
         _log.critical(msg)
+        # TODO: append last lines of log_file
         # HINT: Do !NOT! remove the update_lock_file because an unexpected exception was raised in the final update!
         send_email(subject=subject_error+' WITH UNEXPECTED EXCEPTION!!!', body=msg)
         send_email(subject=subject_error + ' WITH UNEXPECTED EXCEPTION!!!', body=msg,

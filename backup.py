@@ -62,6 +62,8 @@ def backup(instance_dir, backup_file='', mode='manual', log_file='', cmd_args=No
         except Exception as e:
             backup_archive = False
             _log.warning("Http streaming backup failed! %s" % repr(e))
+            if mode == 'http':
+                raise e
 
     # Manual backup via file copy and pg_dump
     # ---------------------------------------
@@ -71,15 +73,14 @@ def backup(instance_dir, backup_file='', mode='manual', log_file='', cmd_args=No
             backup_archive = tools_odoo.odoo_backup_manual(db_url=s.db_url, data_dir=s.data_dir, backup_file=backup_file,
                                                            timeout=timeout)
         except Exception as e:
-            backup_archive = False
-            _log.error("Manual backup failed! %s" % repr(e))
+            msg = "Manual backup failed! %s" % repr(e)
+            _log.error(msg)
+            raise e
+
+    assert backup_archive, "BACKUP OF INSTANCE %s TO %s FAILED!" % (s.instance, backup_file)
 
     # _log result
-    if backup_archive:
-        _log.info("BACKUP OF INSTANCE %s TO %s DONE!" % (s.instance, backup_archive))
-    else:
-        _log.critical("BACKUP OF INSTANCE %s TO %s FAILED!" % (s.instance, backup_file))
-        return False
+    _log.info("BACKUP OF INSTANCE %s TO %s DONE!" % (s.instance, backup_archive))
 
     # Return 'path to backup file' or False
     return backup_archive
