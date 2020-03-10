@@ -389,8 +389,14 @@ class Settings:
             self.startup_args = set_arg(self.startup_args, '--proxy-mode')
 
         # --load=SERVER_WIDE_MODULES (Comma-separated list of server-wide modules)
+        # ATTENTION: if you add 'connector' to the server wide modules the installation of addons will no longer
+        #            work correctly on odoo startup!!! Dependend addons will not be installed and -i will not
+        #            work if the addon is not already installed! I have no idea why!!!
+        #            !!! BUT IF A CONNECTOR CONFIGURATION IS IN SERVER.CONF IT WORKS JUST NORMALLY !!!
+        #            Therefore we remove the connector her because we can not be sure that a config is set.
         if '--load' not in sargs and 'server_wide_modules' not in self.server_conf:
-            self.startup_args = set_arg(self.startup_args, '--load', 'web,web_kanban,dbfilter_from_header,connector')
+            #self.startup_args = set_arg(self.startup_args, '--load', 'web,web_kanban,dbfilter_from_header,connector')
+            self.startup_args = set_arg(self.startup_args, '--load', 'web,web_kanban,dbfilter_from_header')
 
         # --without-demo=all
         if '--without-demo' not in sargs and 'without_demo' not in self.server_conf:
