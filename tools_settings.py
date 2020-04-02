@@ -228,9 +228,11 @@ class Settings:
             self.xmlrpc_port = '8069'
         # update mode
         if update_instance_mode:
-            self.xmlrpc_port = str(int(self.xmlrpc_port or instance_server_conf['xmlrpc_port']) + 10)
-            if self.xmlrpcs_port:
-                self.xmlrpcs_port = str(int(self.xmlrpcs_port) + 10)
+            if not self.server_conf.get('xmlrpc_port', None):
+                self.xmlrpc_port = str(int(instance_server_conf['xmlrpc_port']) + 10)
+            if not self.server_conf.get('xmlrpcs_port', None):
+                if instance_server_conf['xmlrpcs_port']:
+                    self.xmlrpcs_port = str(int(instance_server_conf['xmlrpcs_port']) + 10)
         # startup args
         if self.xmlrpc_port:
             self.startup_args = set_arg(self.startup_args, '--xmlrpc-port', self.xmlrpc_port)
