@@ -57,6 +57,7 @@ _log.addHandler(log_sys_handler)
 
 
 def excepthook(*eargs):
+    print "SYS excepthook() %s" % repr(eargs)
     # Get the root logger and log to CRITICAL
     logging.getLogger(__name__).critical('Uncaught exception:\n'
                                          '-------------------\n', exc_info=eargs)
