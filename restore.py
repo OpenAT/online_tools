@@ -113,28 +113,37 @@ def restore(instance_dir, backup_zip_file, mode='manual', log_file='', cmd_args=
 
         # Unzip the dump.sql file
         _log.info("Unzip dump.sql from backup archive")
-        dump_file = tempfile.NamedTemporaryFile(delete=False)
+        temp_dump_sql_file = tempfile.NamedTemporaryFile(delete=False)
         try:
+            # Open the Zip Archive
             with zipfile.ZipFile(backup_zip_file) as archive:
-                dump_file.write(archive.open('dump.sql').read())
+                # Open the file dump.sql from the zip archive as a file like object
+                with archive.open('dump.sql') as dump_sql:
+                    while True:
+                        # Read 2048 bytes from the file
+                        data = dump_sql.read(2048)
+                        if not data:
+                            break
+                        # Write that bytes to the named temporary file
+                        temp_dump_sql_file.write(data)
         except Exception as e:
             _log.error("Could not extract dump.sql from backup archive! %s" % repr(e))
-            os.unlink(dump_file.name)
+            os.unlink(temp_dump_sql_file.name)
             raise e
 
         # Restore dump.sql
         _log.info("Restore dump.sql from backup archive with psql to database %s" % s.db_name)
         try:
-            shell(['psql', '-d', s.db_url, '-f', dump_file.name], log=False, timeout=timeout)
+            shell(['psql', '-d', s.db_url, '-f', temp_dump_sql_file.name], log=False, timeout=timeout)
             restore_done = True
         except Exception as e:
             _log.error("Restore dump.sql from backup archive with psql failed! %s" % repr(e))
-            os.unlink(dump_file.name)
+            os.unlink(temp_dump_sql_file.name)
             raise e
 
         # Unlink the temp file
         _log.info("Unlink temp file for dump.sql")
-        os.unlink(dump_file.name)
+        os.unlink(temp_dump_sql_file.name)
 
     # Start the odoo service
     if start_after_restore and service_exists(s.linux_instance_service):
