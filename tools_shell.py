@@ -288,6 +288,7 @@ def tail(filename, n):
 
     last_byte_read = last_nl_byte = starting_offset = stat.st_size - 1
 
+    # Compute the offset
     with open(filename, 'r') as f:
         while count > 0:
             starting_byte = last_byte_read - page_size
@@ -312,6 +313,7 @@ def tail(filename, n):
     offsets = offsets[len(offsets)-_n:]
     offsets.reverse()
 
+    # Return a generator
     with open(filename, 'r') as f:
         for i, offset in enumerate(offsets):
             f.seek(offset)
@@ -323,9 +325,10 @@ def tail(filename, n):
                 yield f.read(bytes_to_read)
 
 
+# Iterate over the generator to return the string
 def tail_no_exception(filename, n):
     try:
-        res = tail(filename, n)
+        res = "".join(x for x in tail(filename, n))
         return res
     except Exception as e:
         _log.warning('tail() failed: %s' % repr(e))

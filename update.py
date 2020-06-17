@@ -389,7 +389,7 @@ def update(instance_dir, update_branch='o8', cmd_args=None, log_file='', paralle
         _log.error(str(e))
         # Append last lines of log_file
         if log_file:
-            log_tail = tail_no_exception(log_file, 50)
+            log_tail = tail_no_exception(log_file, 1000)
             msg = msg + '\n\n\nlog tail:\n\n...\n %s' % log_tail if log_tail else msg
         send_email(subject=subject_error, body=msg)
         # Cleanup and return
@@ -410,7 +410,7 @@ def update(instance_dir, update_branch='o8', cmd_args=None, log_file='', paralle
         _log.critical(msg)
         # Append last lines of log_file
         if log_file:
-            log_tail = tail_no_exception(log_file, 50)
+            log_tail = tail_no_exception(log_file, 1000)
             msg = msg + '\n\n\nlog tail:\n\n...\n %s' % log_tail if log_tail else msg
         # HINT: Do !NOT! remove the update_lock_file because an unexpected exception was raised in the final update!
         send_email(subject=subject_error+' WITH UNEXPECTED EXCEPTION!!!', body=msg)
