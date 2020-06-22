@@ -147,7 +147,8 @@ def restore(instance_dir, backup_zip_file, mode='manual', log_file='', cmd_args=
 
     # DISABLE all cron jobs and remove passwords and access data
     if development_mode:
-        disable_for_development_file = pj(os.path.realpath(__file__), 'sql', 'disable_for_development.sql')
+        script_dir = os.path.split(os.path.realpath(__file__))[0]
+        disable_for_development_file = pj(script_dir, 'sql', 'disable_for_development.sql')
         assert os.path.isfile(disable_for_development_file), "SQL file '%s' not found!" % disable_for_development_file
         shell(['psql', '-d', s.db_url, '-f', disable_for_development_file], log=False, timeout=timeout)
 
