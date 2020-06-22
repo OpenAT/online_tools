@@ -150,6 +150,7 @@ def restore(instance_dir, backup_zip_file, mode='manual', log_file='', cmd_args=
         script_dir = os.path.split(os.path.realpath(__file__))[0]
         disable_for_development_file = pj(script_dir, 'sql', 'disable_for_development.sql')
         assert os.path.isfile(disable_for_development_file), "SQL file '%s' not found!" % disable_for_development_file
+        _log.info("Execute disable_for_development.sql for from '%s'" % disable_for_development_file)
         shell(['psql', '-d', s.db_url, '-f', disable_for_development_file], log=False, timeout=timeout)
 
     # Start the odoo service
