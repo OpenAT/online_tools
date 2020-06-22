@@ -88,6 +88,23 @@ def fs_online():
                         cmd_args=unknown_args, log_file=known_args.log_file)
         exit(0)
 
+    # DEVELOPMENT_RESTORE
+    if known_args.development_restore:
+        answer_dev_restore = ''
+        while answer_dev_restore not in ('Yes', 'No'):
+            answer_dev_restore = raw_input("The database for instance '%s' will be dropped without a backup!\n"
+                                           "Are you sure you want to do a development-restore of '%s'?\n"
+                                           "[Yes/No]: "
+                                           "" % (known_args.instance_dir, known_args.restore))
+            if answer_dev_restore == 'Yes':
+                restore.restore(known_args.instance_dir,
+                                backup_zip_file=known_args.restore,
+                                cmd_args=unknown_args, log_file=known_args.log_file,
+                                backup_before_drop=False,
+                                start_after_restore=False,
+                                development_mode=True)
+        exit(0)
+
     # UPDATE
     if known_args.update:
         update.update(known_args.instance_dir,
@@ -125,6 +142,10 @@ parser.add_argument('--backup',
                          '/[instance_dir]/update/[backupname.zip] if no backupfile is given!')
 
 parser.add_argument('--restore',
+                    metavar='/path/to/backup/backup.zip',
+                    help='Restore from backup zip or from folder')
+
+parser.add_argument('--development_restore',
                     metavar='/path/to/backup/backup.zip',
                     help='Restore from backup zip or from folder')
 

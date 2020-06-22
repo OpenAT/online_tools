@@ -17,7 +17,7 @@ _log = logging.getLogger()
 
 
 def restore(instance_dir, backup_zip_file, mode='manual', log_file='', cmd_args=None, settings=None,
-            backup_before_drop=True, start_after_restore=False, timeout=60*60*3):
+            backup_before_drop=True, start_after_restore=False, timeout=60*60*3, development_mode=False):
     cmd_args = list() if not cmd_args else cmd_args
     mode_allowed = ('all', 'http', 'manual')
     assert mode in mode_allowed, "mode must be one of %s" % str(mode_allowed)
@@ -144,6 +144,12 @@ def restore(instance_dir, backup_zip_file, mode='manual', log_file='', cmd_args=
         # Unlink the temp file
         _log.info("Unlink temp file for dump.sql")
         os.unlink(temp_dump_sql_file.name)
+
+    # DISABLE all cron jobs and remove passwords and access data
+    if development_mode:
+        disable_for_development_file = pj(os.path.realpath(__file__), 'sql', 'disable_for_development.sql')
+        assert os.path.isfile(disable_for_development_file), "SQL file '%s' not found!" % disable_for_development_file
+        shell(['psql', '-d', s.db_url, '-f', disable_for_development_file], log=False, timeout=timeout)
 
     # Start the odoo service
     if start_after_restore and service_exists(s.linux_instance_service):
