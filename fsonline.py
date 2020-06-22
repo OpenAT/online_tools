@@ -95,10 +95,10 @@ def fs_online():
             answer_dev_restore = raw_input("The database for instance '%s' will be dropped without a backup!\n"
                                            "Are you sure you want to do a development-restore of '%s'?\n"
                                            "[Yes/No]: "
-                                           "" % (known_args.instance_dir, known_args.restore))
+                                           "" % (known_args.instance_dir, known_args.development_restore))
             if answer_dev_restore == 'Yes':
                 restore.restore(known_args.instance_dir,
-                                backup_zip_file=known_args.restore,
+                                backup_zip_file=known_args.development_restore,
                                 cmd_args=unknown_args, log_file=known_args.log_file,
                                 backup_before_drop=False,
                                 start_after_restore=False,
