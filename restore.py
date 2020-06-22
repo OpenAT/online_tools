@@ -32,7 +32,7 @@ def restore(instance_dir, backup_zip_file, mode='manual', log_file='', cmd_args=
     logging.info('----------------------------------------')
     assert os.path.isfile(pj(instance_dir, 'instance.ini')), 'Not an instance directory! %s' % instance_dir
     assert os.path.isfile(backup_zip_file), 'Backup zip file not found at %s' % backup_zip_file
-    if not backup_before_drop:
+    if not development_mode and not backup_before_drop:
         assert '_update' in instance, "'backup_before_drop' must be enabled for non update instances!"
 
     # Load instance configuration
