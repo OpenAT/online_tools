@@ -431,6 +431,9 @@ def update(instance_dir, update_branch='o8', cmd_args=None, log_file='', paralle
     # Cleanup and return
     os.unlink(s.update_lock_file)
 
+    # Wait after removing own lock
+    sleep(60)
+    
     # If this update is done, and there is zero locks remaining,
     # run the cleanup tool
     if len(find_file(s.update_lock_file_name,
