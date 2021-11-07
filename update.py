@@ -438,7 +438,7 @@ def update(instance_dir, update_branch='o8', cmd_args=None, log_file='', paralle
                      max_finds=1,
                      exclude_folders=['cores'])) == 0:
         # Run cleanup tool
-        shell(['/opt/fso-cleaner/FsoCleaner', '--online-dir', s.cores_dir, '--core-retention', '2', '--backup-retention', '5'])
+        shell(['/opt/fso-cleaner/FsoCleaner', '--online-dir', s.base_dir, '--core-retention', '2', '--backup-retention', '5'])
         pass
 
     return update_done
