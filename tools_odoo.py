@@ -89,7 +89,12 @@ def odoo_backup_manual(db_url='', data_dir='', backup_file='', timeout=60 * 60 *
 
     target_dir = os.path.join(temp_dir, 'filestore')
     _log.info("Copy data at %s to %s" % (source_dir, target_dir))
-    shutil.copytree(source_dir, target_dir)
+    try:
+        shell(['cp', '-RLn', source_dir, target_dir],
+              log=False, timeout=timeout)
+    except Exception as e:
+        _log.error("Copy data failed! %s" % repr(e))
+        raise e
 
     # Backup database via pg_dump
     db_file = os.path.join(temp_dir, 'dump.sql')
