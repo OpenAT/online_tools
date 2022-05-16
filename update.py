@@ -148,7 +148,16 @@ def _prepare_update(instance_settings_obj, timeout=60*60*4, update_branch='o8'):
     # -----------------------------------------------------------------
     # Backup
     _log.info('Creating pre-update-backup')
-    pre_update_backup = backup.backup(s.instance_dir, log_file=s_upd.log_file, settings=s)
+
+    # Provide custom backup name to include "__update__" in backup file name
+    core_id = s.core_tag or s.core_commit
+    start_str = datetime.datetime.utcnow().strftime('%Y-%m-%dT%H-%M-%S')
+    assert core_id, "No commit tag or commit id found for odoo core at %s" % s.instance_core_dir
+    backup_name = s.instance + '__update__' + start_str + '__' + core_id + '.zip'
+    backup_file = pj(s.instance_dir, 'update', backup_name)
+
+    # Create the backup
+    pre_update_backup = backup.backup(s.instance_dir, backup_file=backup_file, log_file=s_upd.log_file, settings=s)
     assert pre_update_backup, "Backup failed!"
 
     # Append pre_update_backup file to the result
